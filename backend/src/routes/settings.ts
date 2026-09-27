@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../config/db';
-import { RowDataPacket } from 'mysql2';
+import mysql, { RowDataPacket } from 'mysql2/promise';
 
 const router = Router();
 
@@ -26,7 +26,13 @@ async function ensureSettingsTable() {
     default_rate_high_voc: '350',
     default_rate_prison: '350',
     default_practice_hours: '18',
-    fiscal_year_start_month: '10'
+    fiscal_year_start_month: '10',
+    server_deployment_mode: 'localhost',
+    server_domain_or_ip: 'localhost',
+    server_frontend_port: '8888',
+    server_backend_port: '5080',
+    server_db_port: '3307',
+    server_db_mode: 'docker_internal'
   };
 
   for (const [key, value] of Object.entries(defaults)) {
@@ -161,6 +167,73 @@ router.post('/db-ping', async (_req: Request, res: Response): Promise<void> => {
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
+});
+
+// POST /api/v1/settings/test-external-db (Test connection to external database)
+router.post('/test-external-db', async (req: Request, res: Response): Promise<void> => {
+  const { host, port, user, password, database } = req.body;
+  const startTime = Date.now();
+  let conn;
+  try {
+    conn = await mysql.createConnection({
+      host: host || 'localhost',
+      port: Number(port) || 3306,
+      user: user || 'root',
+      password: password || '',
+      database: database || undefined,
+      connectTimeout: 4000
+    });
+    const [rows] = await conn.query<RowDataPacket[]>('SELECT VERSION() as v');
+    const latency = Date.now() - startTime;
+    await conn.end();
+    res.json({
+      success: true,
+      latency_ms: latency,
+      server_version: rows[0]?.v || 'MariaDB / MySQL',
+      message: `เชื่อมต่อสำเร็จ (${latency} ms) - Engine: ${rows[0]?.v || 'MariaDB / MySQL'}`
+    });
+  } catch (err: any) {
+    if (conn) {
+      await conn.end().catch(() => {});
+    }
+    res.status(400).json({
+      success: false,
+      message: `ไม่สามารถเชื่อมต่อฐานข้อมูลได้: ${err.message}`
+    });
+  }
+});
+
+// GET /api/v1/settings/download-server-env (Download server .env template)
+router.get('/download-server-env', (req: Request, res: Response): void => {
+  const {
+    frontend_port = '8888',
+    backend_port = '5080',
+    db_port = '3307',
+    db_name = 'training_budget_db',
+    db_password = 'cvcmedia2022'
+  } = req.query;
+
+  const envContent = `# ==========================================
+# Training Materials Budget Allocation System
+# Server Environment Configuration
+# Generated: ${new Date().toISOString()}
+# ==========================================
+
+# Database Configuration
+DB_ROOT_PASSWORD=${db_password}
+DB_NAME=${db_name}
+DB_PORT_HOST=${db_port}
+
+# Backend API Configuration
+BACKEND_PORT_HOST=${backend_port}
+
+# Frontend Web Application Configuration
+FRONTEND_PORT_HOST=${frontend_port}
+`;
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename=".env"');
+  res.send(envContent);
 });
 
 // GET /api/v1/settings/db-export-sql (Generate raw SQL dump for backup/migration)

@@ -116,6 +116,17 @@ export interface SystemSettings {
   default_rate_prison: string;
   default_practice_hours: string;
   fiscal_year_start_month: string;
+  server_deployment_mode?: 'localhost' | 'lan' | 'cloud';
+  server_domain_or_ip?: string;
+  server_frontend_port?: string;
+  server_backend_port?: string;
+  server_db_port?: string;
+  server_db_mode?: 'docker_internal' | 'external';
+  server_external_db_host?: string;
+  server_external_db_port?: string;
+  server_external_db_name?: string;
+  server_external_db_user?: string;
+  server_external_db_password?: string;
 }
 
 export interface SystemStatus {

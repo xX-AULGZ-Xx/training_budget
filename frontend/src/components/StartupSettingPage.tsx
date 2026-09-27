@@ -15,7 +15,18 @@ import {
   Layers,
   RotateCcw,
   Sliders,
-  CheckCircle
+  CheckCircle,
+  Server,
+  Globe,
+  HardDrive,
+  Terminal,
+  Copy,
+  Download,
+  Laptop,
+  Network,
+  Cpu,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 import { SystemSettings, DatabaseHealth } from '../types';
 
@@ -50,24 +61,41 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
     default_rate_high_voc: '350',
     default_rate_prison: '350',
     default_practice_hours: '18',
-    fiscal_year_start_month: '10'
+    fiscal_year_start_month: '10',
+    server_deployment_mode: 'localhost',
+    server_domain_or_ip: 'localhost',
+    server_frontend_port: '8888',
+    server_backend_port: '5080',
+    server_db_port: '3307',
+    server_db_mode: 'docker_internal',
+    server_external_db_host: 'localhost',
+    server_external_db_port: '3306',
+    server_external_db_name: 'training_budget_db',
+    server_external_db_user: 'root',
+    server_external_db_password: ''
   };
 
   const [settings, setSettings] = useState<SystemSettings>(defaultCvcSettings);
 
-  // Step 2: Live Simulator State
+  // Step 2: Server & External DB Testing State
+  const [externalDbTesting, setExternalDbTesting] = useState<boolean>(false);
+  const [externalDbResult, setExternalDbResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [copiedDeployCmd, setCopiedDeployCmd] = useState<boolean>(false);
+  const [showNginxModal, setShowNginxModal] = useState<boolean>(false);
+
+  // Step 3: Live Simulator State
   const [simStudents, setSimStudents] = useState<number>(30);
   const [simHours, setSimHours] = useState<number>(18);
   const [simShareHours, setSimShareHours] = useState<number>(2);
 
-  // Step 3: Academic Term State
+  // Step 4: Academic Term State
   const [termYear, setTermYear] = useState<number>(2568);
   const [termSemester, setTermSemester] = useState<number>(1);
 
-  // Step 4: Preset Master Data
+  // Step 5: Preset Master Data
   const [presetType, setPresetType] = useState<'full' | 'tech' | 'commerce' | 'none'>('full');
 
-  // Step 5: Options
+  // Step 6: Options
   const [seedDemoAllocations, setSeedDemoAllocations] = useState<boolean>(true);
 
   // Fetch initial settings & db status on mount
@@ -97,14 +125,15 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
 
   const steps = [
     { id: 1, title: 'ข้อมูลสถานศึกษา', icon: School, desc: 'ชื่อและผู้ลงนาม' },
-    { id: 2, title: 'อัตราจัดสรร', icon: Calculator, desc: 'เกณฑ์คำนวณงบ' },
-    { id: 3, title: 'ปีการศึกษาแรก', icon: Calendar, desc: 'งวดจัดสรรเริ่มต้น' },
-    { id: 4, title: 'แผนก & กลุ่มเรียน', icon: Building2, desc: 'โครงสร้างหลักสูตร' },
-    { id: 5, title: 'ตรวจสอบ & เริ่มระบบ', icon: Rocket, desc: 'ยืนยันและเปิดใช้' }
+    { id: 2, title: 'ตั้งค่าเซิร์ฟเวอร์', icon: Server, desc: 'โหมด & ติดตั้ง Server' },
+    { id: 3, title: 'อัตราจัดสรร', icon: Calculator, desc: 'เกณฑ์คำนวณงบ' },
+    { id: 4, title: 'ปีการศึกษาแรก', icon: Calendar, desc: 'งวดจัดสรรเริ่มต้น' },
+    { id: 5, title: 'แผนก & กลุ่มเรียน', icon: Building2, desc: 'โครงสร้างหลักสูตร' },
+    { id: 6, title: 'ตรวจสอบ & เริ่มระบบ', icon: Rocket, desc: 'ยืนยันและเปิดใช้' }
   ];
 
   const handleNext = () => {
-    if (currentStep < 5) setCurrentStep(currentStep + 1);
+    if (currentStep < 6) setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
@@ -117,24 +146,77 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
 
   const handleClearSettingsForm = () => {
     setSettings({
+      ...settings,
       college_name: '',
       college_code: '',
       affiliation: 'สำนักงานคณะกรรมการการอาชีวศึกษา',
       department_name: 'งานวางแผนและงบประมาณ',
       director_name: '',
       planner_name: '',
-      default_operator: '',
-      default_rate_voc: '350',
-      default_rate_high_voc: '350',
-      default_rate_prison: '350',
-      default_practice_hours: '18',
-      fiscal_year_start_month: '10'
+      default_operator: ''
     });
+  };
+
+  // Test external DB connection
+  const handleTestExternalDb = async () => {
+    setExternalDbTesting(true);
+    setExternalDbResult(null);
+    try {
+      const res = await fetch('/api/v1/settings/test-external-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: settings.server_external_db_host,
+          port: settings.server_external_db_port,
+          user: settings.server_external_db_user,
+          password: settings.server_external_db_password,
+          database: settings.server_external_db_name
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setExternalDbResult({ success: true, message: data.message });
+      } else {
+        setExternalDbResult({ success: false, message: data.message || 'เชื่อมต่อล้มเหลว' });
+      }
+    } catch (err: any) {
+      setExternalDbResult({ success: false, message: 'เกิดข้อผิดพลาด: ' + err.message });
+    } finally {
+      setExternalDbTesting(false);
+    }
+  };
+
+  // Download .env file
+  const handleDownloadEnv = () => {
+    const params = new URLSearchParams({
+      frontend_port: settings.server_frontend_port || '8888',
+      backend_port: settings.server_backend_port || '5080',
+      db_port: settings.server_db_port || '3307',
+      db_name: 'training_budget_db',
+      db_password: 'cvcmedia2022'
+    });
+    window.open(`/api/v1/settings/download-server-env?${params.toString()}`, '_blank');
+  };
+
+  // Generated deployment command for other servers
+  const deployCommand = `# ติดตั้งและเปิดระบบบนเครื่อง Server อื่น (Ubuntu / Debian / CentOS / macOS):
+git clone https://github.com/xX-AULGZ-Xx/training_budget.git
+cd training_budget
+cp .env.example .env
+docker compose up -d --build
+
+# ตรวจสอบสถานะการทำงาน:
+docker compose ps`;
+
+  const handleCopyDeployCmd = () => {
+    navigator.clipboard.writeText(deployCommand);
+    setCopiedDeployCmd(true);
+    setTimeout(() => setCopiedDeployCmd(false), 2500);
   };
 
   const handleFinishStartup = async () => {
     setSubmitting(true);
-    setSubmitProgress('กำลังบันทึกข้อมูลสถานศึกษาและตั้งค่าระบบ...');
+    setSubmitProgress('กำลังบันทึกข้อมูลสถานศึกษาและการตั้งค่าเซิร์ฟเวอร์...');
     try {
       await new Promise((r) => setTimeout(r, 400));
       setSubmitProgress('กำลังสร้างงวดปีการศึกษาและเปิดสถานะพร้อมใช้งาน...');
@@ -212,7 +294,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                   ตัวช่วยตั้งค่าและติดตั้งระบบครั้งแรก (Start Up Setup)
                 </h1>
                 <p className="text-xs text-blue-200/80 mt-0.5">
-                  ระบบจัดสรรงบประมาณค่าวัสดุฝึกปฏิบัติการ • แนะนำการตั้งค่า 5 ขั้นตอนเพื่อความพร้อมสูงสุด
+                  ระบบจัดสรรงบประมาณค่าวัสดุฝึกปฏิบัติการ • รองรับการติดตั้งทั้งเครื่องเดี่ยว, เครือข่าย LAN ในสถาบัน และ Server ภายนอก
                 </p>
               </div>
             </div>
@@ -228,7 +310,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
           {/* Stepper Progress Bar */}
           {!isSuccess && (
             <div className="mt-8 pt-6 border-t border-white/10 relative z-10">
-              <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+              <div className="grid grid-cols-6 gap-1 sm:gap-2">
                 {steps.map((s) => {
                   const Icon = s.icon;
                   const isDone = s.id < currentStep;
@@ -247,7 +329,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                       }`}
                     >
                       <div
-                        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center mb-1.5 transition-all text-xs font-bold ${
+                        className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center mb-1.5 transition-all text-xs font-bold ${
                           isDone
                             ? 'bg-emerald-500 text-white shadow-md'
                             : isCurrent
@@ -255,9 +337,9 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                             : 'bg-white/15 text-white/70'
                         }`}
                       >
-                        {isDone ? <Check className="w-4 h-4 stroke-[3]" /> : <Icon className="w-4 h-4 sm:w-5 sm:h-5" />}
+                        {isDone ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" /> : <Icon className="w-3.5 h-3.5 sm:w-5 sm:h-5" />}
                       </div>
-                      <span className="text-[11px] font-bold text-white hidden sm:block truncate max-w-full">
+                      <span className="text-[10px] sm:text-[11px] font-bold text-white hidden sm:block truncate max-w-full">
                         {s.title}
                       </span>
                       <span className="text-[9px] text-white/60 hidden md:block truncate max-w-full">
@@ -282,13 +364,13 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
 
               <div>
                 <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200">
-                  Setup Completed
+                  Setup & Deployment Ready
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
-                  ตั้งค่าเริ่มต้นระบบเรียบร้อยสมบูรณ์!
+                  ติดตั้งและตั้งค่าเริ่มต้นระบบเรียบร้อยสมบูรณ์!
                 </h2>
                 <p className="text-sm text-slate-500 max-w-lg mx-auto mt-2">
-                  ระบบได้บันทึกข้อมูลสถานศึกษา กำหนดเกณฑ์คำนวณงบประมาณ ติดตั้งแผนกวิชา และเปิดงวดภาคเรียนที่{' '}
+                  ระบบได้บันทึกข้อมูลสถานศึกษา ตั้งค่าสภาพแวดล้อมเซิร์ฟเวอร์ ติดตั้งแผนกวิชา และเปิดงวดภาคเรียนที่{' '}
                   <strong className="text-slate-800">{termSemester}/{termYear}</strong> พร้อมเริ่มจัดสรรงบประมาณทันที
                 </p>
               </div>
@@ -298,6 +380,16 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                   <span className="text-slate-500">สถานศึกษา:</span>
                   <span className="font-bold text-slate-800">
                     {settings.college_name} ({settings.college_code})
+                  </span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-200">
+                  <span className="text-slate-500">โหมดเซิร์ฟเวอร์ (Server Mode):</span>
+                  <span className="font-bold text-indigo-700">
+                    {settings.server_deployment_mode === 'localhost'
+                      ? '💻 เครื่องเดี่ยว (Localhost)'
+                      : settings.server_deployment_mode === 'lan'
+                      ? `🏢 เครือข่าย LAN (${settings.server_domain_or_ip}:${settings.server_frontend_port})`
+                      : `☁️ Cloud / Domain (${settings.server_domain_or_ip})`}
                   </span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-200">
@@ -312,16 +404,10 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                     {settings.default_rate_voc} บาท / {settings.default_rate_high_voc} บาท
                   </span>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-200">
+                <div className="flex justify-between py-1.5">
                   <span className="text-slate-500">โครงสร้างแผนกวิชา:</span>
                   <span className="font-bold text-emerald-700">
                     {presetType === 'none' ? 'โครงสร้างเปล่า (กำหนดเอง)' : 'ติดตั้งสำเร็จพร้อมกลุ่มเรียน'}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1.5">
-                  <span className="text-slate-500">ข้อมูลรายการจัดสรร:</span>
-                  <span className="font-bold text-slate-800">
-                    {seedDemoAllocations ? 'มีรายการตัวอย่างสำหรับการทดสอบ' : 'ตารางว่างพร้อมบันทึกจริง'}
                   </span>
                 </div>
               </div>
@@ -345,7 +431,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                        ขั้นตอนที่ 1 จาก 5
+                        ขั้นตอนที่ 1 จาก 6
                       </span>
                       <h3 className="text-lg font-bold text-slate-900 mt-0.5">
                         ข้อมูลสถานศึกษาและผู้ลงนามในรายงาน
@@ -500,12 +586,415 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                 </div>
               )}
 
-              {/* STEP 2: RATES & SIMULATOR */}
+              {/* STEP 2: SERVER & DEPLOYMENT CONFIGURATION */}
               {currentStep === 2 && (
                 <div className="space-y-6 animate-fade-in">
                   <div>
                     <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                      ขั้นตอนที่ 2 จาก 5
+                      ขั้นตอนที่ 2 จาก 6
+                    </span>
+                    <h3 className="text-lg font-bold text-slate-900 mt-0.5">
+                      การตั้งค่าสภาพแวดล้อมเซิร์ฟเวอร์และการติดตั้ง (Server & Deployment)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      เลือกรูปแบบการติดตั้งสำหรับเครื่องนี้ หรือเตรียมการสำหรับนำไประบบไปรันบน Server เครื่องอื่น
+                    </p>
+                  </div>
+
+                  {/* Deployment Target Selection */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-2.5">
+                      1. เลือกรูปแบบสภาพแวดล้อมการติดตั้ง (Deployment Target):
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* Mode 1: Localhost */}
+                      <div
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            server_deployment_mode: 'localhost',
+                            server_domain_or_ip: 'localhost',
+                            server_frontend_port: '8888'
+                          })
+                        }
+                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                          settings.server_deployment_mode === 'localhost'
+                            ? 'border-blue-600 bg-blue-50/60 shadow-md ring-2 ring-blue-200'
+                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-extrabold text-slate-900 flex items-center space-x-1.5">
+                            <Laptop className="w-4 h-4 text-blue-600" />
+                            <span>เครื่องเดี่ยว (Localhost)</span>
+                          </span>
+                          {settings.server_deployment_mode === 'localhost' && (
+                            <CheckCircle className="w-4 h-4 text-blue-600" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          เหมาะสำหรับทดสอบ, รันบนเครื่องคอมพิวเตอร์ส่วนบุคคล หรือเครื่องประจำแผนกงาน
+                        </p>
+                        <div className="text-[10px] font-mono text-slate-600 mt-2 bg-white/80 px-2 py-1 rounded border border-slate-200">
+                          URL: http://localhost:8888
+                        </div>
+                      </div>
+
+                      {/* Mode 2: Campus LAN */}
+                      <div
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            server_deployment_mode: 'lan',
+                            server_domain_or_ip: settings.server_domain_or_ip === 'localhost' ? '192.168.1.100' : settings.server_domain_or_ip,
+                            server_frontend_port: '8888'
+                          })
+                        }
+                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                          settings.server_deployment_mode === 'lan'
+                            ? 'border-blue-600 bg-blue-50/60 shadow-md ring-2 ring-blue-200'
+                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-extrabold text-slate-900 flex items-center space-x-1.5">
+                            <Network className="w-4 h-4 text-indigo-600" />
+                            <span>เครือข่ายวิทยาลัย (LAN)</span>
+                          </span>
+                          {settings.server_deployment_mode === 'lan' && (
+                            <CheckCircle className="w-4 h-4 text-blue-600" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          เปิดให้ครูและแผนกวิชาต่างๆ ในวิทยาลัยเข้าใช้งานผ่านวงแลนเดียวกัน
+                        </p>
+                        <div className="text-[10px] font-mono text-indigo-700 mt-2 bg-white/80 px-2 py-1 rounded border border-indigo-200">
+                          IP เช่น 192.168.x.x:8888
+                        </div>
+                      </div>
+
+                      {/* Mode 3: Cloud VPS */}
+                      <div
+                        onClick={() =>
+                          setSettings({
+                            ...settings,
+                            server_deployment_mode: 'cloud',
+                            server_domain_or_ip: settings.server_domain_or_ip === 'localhost' ? 'budget.cvc.ac.th' : settings.server_domain_or_ip,
+                            server_frontend_port: '80'
+                          })
+                        }
+                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                          settings.server_deployment_mode === 'cloud'
+                            ? 'border-blue-600 bg-blue-50/60 shadow-md ring-2 ring-blue-200'
+                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-extrabold text-slate-900 flex items-center space-x-1.5">
+                            <Globe className="w-4 h-4 text-emerald-600" />
+                            <span>Cloud VPS / Domain</span>
+                          </span>
+                          {settings.server_deployment_mode === 'cloud' && (
+                            <CheckCircle className="w-4 h-4 text-blue-600" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          ติดตั้งบนคลาวด์เซิร์ฟเวอร์ หรือเครื่องแม่ข่ายจริงที่มีชื่อโดเมนและ SSL/HTTPS
+                        </p>
+                        <div className="text-[10px] font-mono text-emerald-700 mt-2 bg-white/80 px-2 py-1 rounded border border-emerald-200">
+                          https://budget.college.ac.th
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Server Network Details */}
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                    <h4 className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                      <Cpu className="w-4 h-4 text-blue-600" />
+                      <span>กำหนดค่า Hostname และพอร์ตบริการ (Ports & Network)</span>
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Server Domain หรือ IP
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.server_domain_or_ip || 'localhost'}
+                          onChange={(e) => setSettings({ ...settings, server_domain_or_ip: e.target.value })}
+                          placeholder="เช่น 192.168.1.100 หรือ budget.cvc.ac.th"
+                          className="w-full text-xs font-mono bg-white border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Web Frontend Port (โฮสต์)
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.server_frontend_port || '8888'}
+                          onChange={(e) => setSettings({ ...settings, server_frontend_port: e.target.value })}
+                          placeholder="8888 หรือ 80"
+                          className="w-full text-xs font-mono bg-white border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Backend API Port (โฮสต์)
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.server_backend_port || '5080'}
+                          onChange={(e) => setSettings({ ...settings, server_backend_port: e.target.value })}
+                          placeholder="5080"
+                          className="w-full text-xs font-mono bg-white border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Database Engine Selection */}
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                        <HardDrive className="w-4 h-4 text-indigo-600" />
+                        <span>การกำหนดค่าฐานข้อมูล (Database Engine)</span>
+                      </h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label
+                        className={`flex items-start space-x-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                          settings.server_db_mode !== 'external'
+                            ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-200'
+                            : 'bg-white border-slate-200'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="db_mode"
+                          checked={settings.server_db_mode !== 'external'}
+                          onChange={() => setSettings({ ...settings, server_db_mode: 'docker_internal' })}
+                          className="w-4 h-4 text-blue-600 mt-0.5 cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 block">
+                            ใช้ MariaDB 11.4 ใน Docker (แนะนำ)
+                          </span>
+                          <span className="text-[11px] text-slate-500 leading-relaxed block mt-0.5">
+                            ฐานข้อมูลจะถูกจัดการและทำงานคู่กับระบบอัตโนมัติ ไม่ต้องติดตั้งโปรแกรม DB แยกต่างหาก
+                          </span>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`flex items-start space-x-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                          settings.server_db_mode === 'external'
+                            ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-200'
+                            : 'bg-white border-slate-200'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="db_mode"
+                          checked={settings.server_db_mode === 'external'}
+                          onChange={() => setSettings({ ...settings, server_db_mode: 'external' })}
+                          className="w-4 h-4 text-blue-600 mt-0.5 cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 block">
+                            เชื่อมต่อ Database Server ภายนอก
+                          </span>
+                          <span className="text-[11px] text-slate-500 leading-relaxed block mt-0.5">
+                            ใช้ MySQL หรือ MariaDB ส่วนกลางของสถานศึกษาที่มีอยู่แล้ว
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* External DB Form */}
+                    {settings.server_db_mode === 'external' && (
+                      <div className="pt-3 border-t border-slate-200 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              DB Host / IP
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.server_external_db_host || ''}
+                              onChange={(e) => setSettings({ ...settings, server_external_db_host: e.target.value })}
+                              placeholder="เช่น 192.168.1.200"
+                              className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg p-2 focus:outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              DB Port
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.server_external_db_port || '3306'}
+                              onChange={(e) => setSettings({ ...settings, server_external_db_port: e.target.value })}
+                              placeholder="3306"
+                              className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg p-2 focus:outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Database Name
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.server_external_db_name || 'training_budget_db'}
+                              onChange={(e) => setSettings({ ...settings, server_external_db_name: e.target.value })}
+                              placeholder="training_budget_db"
+                              className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg p-2 focus:outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Username
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.server_external_db_user || 'root'}
+                              onChange={(e) => setSettings({ ...settings, server_external_db_user: e.target.value })}
+                              placeholder="root"
+                              className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg p-2 focus:outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Password
+                            </label>
+                            <input
+                              type="password"
+                              value={settings.server_external_db_password || ''}
+                              onChange={(e) => setSettings({ ...settings, server_external_db_password: e.target.value })}
+                              placeholder="รหัสผ่านฐานข้อมูล"
+                              className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="flex items-end">
+                            <button
+                              type="button"
+                              onClick={handleTestExternalDb}
+                              disabled={externalDbTesting}
+                              className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${externalDbTesting ? 'animate-spin' : ''}`} />
+                              <span>{externalDbTesting ? 'กำลังทดสอบ...' : 'ทดสอบการเชื่อมต่อ'}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {externalDbResult && (
+                          <div
+                            className={`p-3 rounded-xl border text-xs flex items-center space-x-2 ${
+                              externalDbResult.success
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : 'bg-rose-50 text-rose-800 border-rose-200'
+                            }`}
+                          >
+                            {externalDbResult.success ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                            )}
+                            <span>{externalDbResult.message}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Helper for other servers */}
+                  <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-indigo-950 flex items-center space-x-1.5">
+                        <Terminal className="w-4 h-4 text-indigo-600" />
+                        <span>ชุดคำสั่งสำหรับนำไปติดตั้งบน Server อื่น (Cross-Server Deployment Script)</span>
+                      </span>
+
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={handleCopyDeployCmd}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-indigo-700 bg-white hover:bg-indigo-100 border border-indigo-200 transition-colors flex items-center space-x-1 cursor-pointer"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>{copiedDeployCmd ? 'คัดลอกแล้ว!' : 'คัดลอกคำสั่ง'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDownloadEnv}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 transition-colors flex items-center space-x-1 cursor-pointer"
+                        >
+                          <Download className="w-3 h-3 text-emerald-600" />
+                          <span>ดาวน์โหลด .env</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-xl p-3 font-mono text-[11px] text-slate-200 overflow-x-auto border border-slate-800">
+                      <pre className="whitespace-pre-wrap">{deployCommand}</pre>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-indigo-700">
+                      <span>รองรับทั้ง Ubuntu 22.04/24.04, Debian 12, CentOS, Docker Desktop บน Windows Server</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowNginxModal(!showNginxModal)}
+                        className="underline font-semibold cursor-pointer"
+                      >
+                        {showNginxModal ? 'ซ่อน Nginx Reverse Proxy' : 'ดูตัวอย่าง Nginx Config สำหรับโดเมนจริง'}
+                      </button>
+                    </div>
+
+                    {showNginxModal && (
+                      <div className="mt-2 p-3 bg-white rounded-xl border border-indigo-200 text-xs font-mono space-y-2 text-slate-800">
+                        <div className="text-[11px] font-sans font-bold text-slate-700">
+                          ตัวอย่าง Nginx Configuration บน Linux Host (เช่น /etc/nginx/sites-available/budget):
+                        </div>
+                        <pre className="text-[10px] bg-slate-50 p-2.5 rounded-lg border border-slate-200 overflow-x-auto whitespace-pre">
+{`server {
+    listen 80;
+    server_name ${settings.server_domain_or_ip || 'budget.college.ac.th'};
+
+    location / {
+        proxy_pass http://127.0.0.1:${settings.server_frontend_port || '8888'};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}`}
+                        </pre>
+                        <span className="text-[10px] font-sans text-slate-500 block">
+                          เปิดใช้งาน SSL อัตโนมัติด้วยคำสั่ง: <code className="bg-slate-100 px-1 py-0.5 rounded">sudo certbot --nginx -d {settings.server_domain_or_ip || 'budget.college.ac.th'}</code>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: RATES & SIMULATOR */}
+              {currentStep === 3 && (
+                <div className="space-y-6 animate-fade-in">
+                  <div>
+                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                      ขั้นตอนที่ 3 จาก 6
                     </span>
                     <h3 className="text-lg font-bold text-slate-900 mt-0.5">
                       อัตราค่าจัดสรรมาตรฐานและระบบจำลองสูตรคำนวณ
@@ -680,12 +1169,12 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                 </div>
               )}
 
-              {/* STEP 3: ACADEMIC TERM */}
-              {currentStep === 3 && (
+              {/* STEP 4: ACADEMIC TERM */}
+              {currentStep === 4 && (
                 <div className="space-y-6 animate-fade-in">
                   <div>
                     <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                      ขั้นตอนที่ 3 จาก 5
+                      ขั้นตอนที่ 4 จาก 6
                     </span>
                     <h3 className="text-lg font-bold text-slate-900 mt-0.5">
                       ปีการศึกษาและภาคเรียนเริ่มต้น (Initial Academic Term)
@@ -751,12 +1240,12 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                 </div>
               )}
 
-              {/* STEP 4: PRESET MASTER DATA */}
-              {currentStep === 4 && (
+              {/* STEP 5: PRESET MASTER DATA */}
+              {currentStep === 5 && (
                 <div className="space-y-6 animate-fade-in">
                   <div>
                     <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                      ขั้นตอนที่ 4 จาก 5
+                      ขั้นตอนที่ 5 จาก 6
                     </span>
                     <h3 className="text-lg font-bold text-slate-900 mt-0.5">
                       แผนกวิชาและกลุ่มเรียนเริ่มต้น (Curriculum & Department Structure)
@@ -931,12 +1420,12 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                 </div>
               )}
 
-              {/* STEP 5: REVIEW & LAUNCH */}
-              {currentStep === 5 && (
+              {/* STEP 6: REVIEW & LAUNCH */}
+              {currentStep === 6 && (
                 <div className="space-y-6 animate-fade-in">
                   <div>
                     <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                      ขั้นตอนที่ 5 จาก 5
+                      ขั้นตอนที่ 6 จาก 6
                     </span>
                     <h3 className="text-lg font-bold text-slate-900 mt-0.5">
                       ตรวจสอบข้อมูลและยืนยันการเริ่มต้นระบบ
@@ -952,6 +1441,16 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                       <span className="text-slate-500">ชื่อสถานศึกษา:</span>
                       <span className="font-bold text-slate-900">
                         {settings.college_name} ({settings.college_code})
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-slate-200">
+                      <span className="text-slate-500">โหมดการติดตั้ง / URL:</span>
+                      <span className="font-bold text-indigo-700">
+                        {settings.server_deployment_mode === 'localhost'
+                          ? `Localhost (พอร์ต ${settings.server_frontend_port})`
+                          : settings.server_deployment_mode === 'lan'
+                          ? `LAN (http://${settings.server_domain_or_ip}:${settings.server_frontend_port})`
+                          : `Cloud Domain (${settings.server_domain_or_ip})`}
                       </span>
                     </div>
                     <div className="flex justify-between py-1.5 border-b border-slate-200">
@@ -987,7 +1486,9 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                     <div className="flex justify-between py-1.5">
                       <span className="text-slate-500">ฐานข้อมูล:</span>
                       <span className="font-semibold text-slate-800">
-                        MariaDB 11.4 ({dbHealth ? `เชื่อมต่อสำเร็จ, ${dbHealth.latency_ms} ms` : 'พร้อมบันทึก'})
+                        {settings.server_db_mode === 'external'
+                          ? `External DB (${settings.server_external_db_host}:${settings.server_external_db_port})`
+                          : `MariaDB 11.4 Container (${dbHealth ? `เชื่อมต่อสำเร็จ, ${dbHealth.latency_ms} ms` : 'พร้อมบันทึก'})`}
                       </span>
                     </div>
                   </div>
@@ -1042,7 +1543,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  {currentStep < 5 ? (
+                  {currentStep < 6 ? (
                     <button
                       type="button"
                       onClick={handleNext}
