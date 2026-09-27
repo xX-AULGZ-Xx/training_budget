@@ -1,0 +1,73 @@
+services:
+  # ==========================================
+  # Database Service (MariaDB 11.4)
+  # ==========================================
+  db:
+    image: mariadb:11.4
+    container_name: training_budget_db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-cvcmedia2022}
+      MARIADB_DATABASE: ${DB_NAME:-training_budget_db}
+    ports:
+      - "${DB_PORT_HOST:-3307}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u root --password=$${MARIADB_ROOT_PASSWORD} || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - app-network
+
+  # ==========================================
+  # Backend API Service (Node.js / Express)
+  # ==========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: training_budget_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ${DB_ROOT_PASSWORD:-cvcmedia2022}
+      DB_NAME: ${DB_NAME:-training_budget_db}
+    ports:
+      - "${BACKEND_PORT_HOST:-5080}:5000"
+    networks:
+      - app-network
+
+  # ==========================================
+  # Frontend Service (React / Vite / Nginx)
+  # ==========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: training_budget_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT_HOST:-8888}:80"
+    networks:
+      - app-network
+
+volumes:
+  db_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
