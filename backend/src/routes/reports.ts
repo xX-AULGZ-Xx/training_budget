@@ -2,8 +2,29 @@ import { Router, Request, Response } from 'express';
 import { pool } from '../config/db';
 import { RowDataPacket } from 'mysql2';
 import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
 
 const router = Router();
+
+function getFontPaths() {
+  const possibleDirs = [
+    path.join(__dirname, '../fonts'),
+    path.join(__dirname, 'fonts'),
+    path.join(process.cwd(), 'fonts'),
+    path.join(process.cwd(), 'src/fonts'),
+    '/app/fonts'
+  ];
+
+  for (const dir of possibleDirs) {
+    const regular = path.join(dir, 'THSarabunNew.ttf');
+    const bold = path.join(dir, 'THSarabunNew-Bold.ttf');
+    if (fs.existsSync(regular) && fs.existsSync(bold)) {
+      return { regular, bold };
+    }
+  }
+  return null;
+}
 
 // GET /api/v1/reports/pdf?term_id={id}&department_id={id|all}
 router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
@@ -27,7 +48,23 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
     }
     const term = terms[0];
 
-    // 2. Fetch Department Summary
+    // 2. Fetch System Settings for Official Header & Signatures
+    const [settingsRows] = await pool.query<RowDataPacket[]>(
+      'SELECT setting_key, setting_value FROM system_settings'
+    );
+    const settings: Record<string, string> = {};
+    settingsRows.forEach((r) => {
+      settings[r.setting_key] = r.setting_value;
+    });
+
+    const collegeName = settings.college_name || 'วิทยาลัยอาชีวศึกษาเชียงราย';
+    const deptName = settings.department_name || 'งานวางแผนและงบประมาณ ฝ่ายแผนงานและความร่วมมือ';
+    const affiliation = settings.affiliation || 'สำนักงานคณะกรรมการการอาชีวศึกษา กระทรวงศึกษาธิการ';
+    const directorName = settings.director_name || 'ผู้อำนวยการสถานศึกษา';
+    const plannerName = settings.planner_name || 'หัวหน้างานวางแผนและงบประมาณ';
+    const operatorName = settings.default_operator || 'เจ้าหน้าที่งานวางแผนและงบประมาณ';
+
+    // 3. Fetch Department Summary
     let deptQuery = `
       SELECT 
           d.id AS department_id,
@@ -74,7 +111,16 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
     const [departments] = await pool.query<RowDataPacket[]>(deptQuery, deptParams);
 
     // Create PDF Document
-    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    const doc = new PDFDocument({ margin: 36, size: 'A4' });
+
+    // Register Thai font
+    const fontPaths = getFontPaths();
+    if (fontPaths) {
+      doc.registerFont('THSarabun', fontPaths.regular);
+      doc.registerFont('THSarabun-Bold', fontPaths.bold);
+    }
+    const fontRegular = fontPaths ? 'THSarabun' : 'Helvetica';
+    const fontBold = fontPaths ? 'THSarabun-Bold' : 'Helvetica-Bold';
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
@@ -85,29 +131,35 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
     doc.pipe(res);
 
     // Header Title
-    doc.fontSize(18).text('Chiang Rai Vocational College', { align: 'center' });
-    doc.fontSize(14).text('Training Materials Budget Allocation Report', { align: 'center' });
-    doc.fontSize(11).text(
-      `Academic Term: Semester ${term.semester} / Year ${term.academic_year}  |  Status: ${term.status}`,
+    doc.font(fontBold).fontSize(16).text(collegeName, { align: 'center' });
+    doc.font(fontRegular).fontSize(12).text(`${deptName} • ${affiliation}`, { align: 'center' });
+    doc.font(fontBold).fontSize(14).text(
+      `รายงานสรุปการจัดสรรงบประมาณค่าวัสดุฝึกปฏิบัติการ ประจำภาคเรียนที่ ${term.semester} ปีการศึกษา ${term.academic_year}`,
       { align: 'center' }
     );
-    doc.moveDown(1.5);
+    doc.font(fontRegular).fontSize(10).text(
+      `สถานะงวด: ${term.status === 'OPEN' ? 'เปิดงวดจัดสรร (OPEN)' : 'ปิดงวด (CLOSED)'}  |  พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+      { align: 'center' }
+    );
+    doc.moveDown(1.2);
 
     // Table Header
     const tableTop = doc.y;
-    doc.fontSize(9).font('Helvetica-Bold');
-    doc.text('Dept Code', 40, tableTop);
-    doc.text('Department Name', 105, tableTop);
-    doc.text('Students', 250, tableTop, { width: 50, align: 'right' });
-    doc.text('Base Budget', 310, tableTop, { width: 70, align: 'right' });
-    doc.text('Deducted (-)', 385, tableTop, { width: 65, align: 'right' });
-    doc.text('Transfer (+)', 455, tableTop, { width: 65, align: 'right' });
-    doc.text('Net Budget', 525, tableTop, { width: 70, align: 'right' });
+    doc.rect(36, tableTop - 3, 523, 20).fill('#f1f5f9');
+    doc.fillColor('#0f172a');
+    doc.font(fontBold).fontSize(10);
+    doc.text('รหัสแผนก', 42, tableTop + 2);
+    doc.text('ชื่อแผนกวิชา', 105, tableTop + 2);
+    doc.text('นักเรียน (คน)', 240, tableTop + 2, { width: 55, align: 'right' });
+    doc.text('งบตั้งต้น (บาท)', 305, tableTop + 2, { width: 75, align: 'right' });
+    doc.text('หักปันส่วน (-)', 385, tableTop + 2, { width: 55, align: 'right' });
+    doc.text('รับโอน (+)', 445, tableTop + 2, { width: 50, align: 'right' });
+    doc.text('งบสุทธิคงเหลือ', 500, tableTop + 2, { width: 55, align: 'right' });
 
-    doc.moveTo(40, tableTop + 14).lineTo(595, tableTop + 14).stroke('#cccccc');
+    doc.moveTo(36, tableTop + 18).lineTo(559, tableTop + 18).stroke('#cbd5e1');
 
-    let currentY = tableTop + 20;
-    doc.font('Helvetica');
+    let currentY = tableTop + 24;
+    doc.font(fontRegular);
 
     let totalStudents = 0;
     let totalBase = 0;
@@ -115,8 +167,8 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
     let totalTrans = 0;
     let totalNet = 0;
 
-    departments.forEach((dept) => {
-      if (currentY > 750) {
+    departments.forEach((dept, index) => {
+      if (currentY > 730) {
         doc.addPage();
         currentY = 40;
       }
@@ -133,41 +185,64 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
       totalTrans += transferred;
       totalNet += net;
 
-      doc.fontSize(8);
-      doc.text(dept.department_code || '', 40, currentY);
-      doc.text(dept.department_name || '', 105, currentY, { width: 140, ellipsis: true });
-      doc.text(students.toLocaleString(), 250, currentY, { width: 50, align: 'right' });
-      doc.text(base.toLocaleString('en-US', { minimumFractionDigits: 2 }), 310, currentY, { width: 70, align: 'right' });
-      doc.text(deducted.toLocaleString('en-US', { minimumFractionDigits: 2 }), 385, currentY, { width: 65, align: 'right' });
-      doc.text(transferred.toLocaleString('en-US', { minimumFractionDigits: 2 }), 455, currentY, { width: 65, align: 'right' });
-      doc.text(net.toLocaleString('en-US', { minimumFractionDigits: 2 }), 525, currentY, { width: 70, align: 'right' });
+      // Alternating row background
+      if (index % 2 === 1) {
+        doc.rect(36, currentY - 2, 523, 16).fill('#f8fafc');
+        doc.fillColor('#1e293b');
+      } else {
+        doc.fillColor('#1e293b');
+      }
 
-      currentY += 18;
+      doc.fontSize(10.5);
+      doc.text(dept.department_code || '', 42, currentY);
+      doc.text(dept.department_name || '', 105, currentY, { width: 135, ellipsis: true });
+      doc.text(students > 0 ? students.toLocaleString() : '-', 240, currentY, { width: 55, align: 'right' });
+      doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 305, currentY, { width: 75, align: 'right' });
+      doc.text(deducted > 0 ? deducted.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 385, currentY, { width: 55, align: 'right' });
+      doc.text(transferred > 0 ? transferred.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 445, currentY, { width: 50, align: 'right' });
+      doc.text(net.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 500, currentY, { width: 55, align: 'right' });
+
+      currentY += 17;
     });
 
     // Total Line
-    doc.moveTo(40, currentY).lineTo(595, currentY).stroke('#333333');
-    currentY += 6;
-    doc.font('Helvetica-Bold').fontSize(8.5);
-    doc.text('TOTAL SUMMARY', 105, currentY);
-    doc.text(totalStudents.toLocaleString(), 250, currentY, { width: 50, align: 'right' });
-    doc.text(totalBase.toLocaleString('en-US', { minimumFractionDigits: 2 }), 310, currentY, { width: 70, align: 'right' });
-    doc.text(totalDeduct.toLocaleString('en-US', { minimumFractionDigits: 2 }), 385, currentY, { width: 65, align: 'right' });
-    doc.text(totalTrans.toLocaleString('en-US', { minimumFractionDigits: 2 }), 455, currentY, { width: 65, align: 'right' });
-    doc.text(totalNet.toLocaleString('en-US', { minimumFractionDigits: 2 }), 525, currentY, { width: 70, align: 'right' });
+    doc.moveTo(36, currentY).lineTo(559, currentY).stroke('#475569');
+    currentY += 4;
+    doc.rect(36, currentY - 2, 523, 19).fill('#e2e8f0');
+    doc.fillColor('#0f172a');
+    doc.font(fontBold).fontSize(11);
+    doc.text('รวมทั้งสิ้น (TOTAL SUMMARY)', 105, currentY + 2);
+    doc.text(totalStudents.toLocaleString(), 240, currentY + 2, { width: 55, align: 'right' });
+    doc.text(totalBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 305, currentY + 2, { width: 75, align: 'right' });
+    doc.text(totalDeduct.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 385, currentY + 2, { width: 55, align: 'right' });
+    doc.text(totalTrans.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 445, currentY + 2, { width: 50, align: 'right' });
+    doc.text(totalNet.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 500, currentY + 2, { width: 55, align: 'right' });
 
     // Footer Signatures
-    currentY += 60;
-    if (currentY > 720) {
+    currentY += 50;
+    if (currentY > 700) {
       doc.addPage();
-      currentY = 60;
+      currentY = 50;
     }
-    doc.fontSize(9).font('Helvetica');
-    doc.text('Prepared by: ............................................', 60, currentY);
-    doc.text('Approved by: ............................................', 350, currentY);
-    currentY += 15;
-    doc.text('( Planning & Budgeting Officer )', 80, currentY);
-    doc.text('( College Director / Vice Director )', 370, currentY);
+
+    doc.fillColor('#1e293b');
+    doc.font(fontRegular).fontSize(10.5);
+
+    const sigY = currentY;
+    // Signature 1: Operator
+    doc.text('ลงชื่อ .....................................................', 45, sigY);
+    doc.text(`( ${operatorName} )`, 55, sigY + 16);
+    doc.text('เจ้าหน้าที่ผู้จัดทำงบประมาณ', 62, sigY + 30);
+
+    // Signature 2: Planner
+    doc.text('ลงชื่อ .....................................................', 215, sigY);
+    doc.text(`( ${plannerName} )`, 225, sigY + 16);
+    doc.text('หัวหน้างานวางแผนและงบประมาณ', 222, sigY + 30);
+
+    // Signature 3: Director
+    doc.text('ลงชื่อ .....................................................', 390, sigY);
+    doc.text(`( ${directorName} )`, 400, sigY + 16);
+    doc.text('ผู้อำนวยการสถานศึกษา', 420, sigY + 30);
 
     doc.end();
   } catch (error: any) {

@@ -17,6 +17,12 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Force UTF-8 character encoding on all responses
+app.use((_req, res, next) => {
+  res.charset = 'utf-8';
+  next();
+});
+
 // API Routes
 app.use('/api/v1/terms', termsRouter);
 app.use('/api/v1/departments', departmentsRouter);

@@ -5,7 +5,9 @@ services:
   db:
     image: mariadb:11.4
     container_name: training_budget_db
-    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-cvcmedia2022}
       MARIADB_DATABASE: ${DB_NAME:-training_budget_db}
