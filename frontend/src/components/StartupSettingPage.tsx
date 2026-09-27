@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   School,
   Calculator,
@@ -9,9 +9,15 @@ import {
   ArrowLeft,
   Rocket,
   Check,
-  Sparkles
+  Sparkles,
+  Activity,
+  FileText,
+  Layers,
+  RotateCcw,
+  Sliders,
+  CheckCircle
 } from 'lucide-react';
-import { SystemSettings } from '../types';
+import { SystemSettings, DatabaseHealth } from '../types';
 
 interface StartupSettingPageProps {
   onComplete: () => void;
@@ -25,36 +31,76 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
+  const [submitProgress, setSubmitProgress] = useState<string>('');
+
+  // Pre-flight database check
+  const [dbHealth, setDbHealth] = useState<DatabaseHealth | null>(null);
+  const [dbLoading, setDbLoading] = useState<boolean>(true);
 
   // Step 1: Organization State
-  const [settings, setSettings] = useState<SystemSettings>({
+  const defaultCvcSettings: SystemSettings = {
     college_name: 'วิทยาลัยอาชีวศึกษาเชียงราย',
     college_code: 'CVC',
     affiliation: 'สำนักงานคณะกรรมการการอาชีวศึกษา กระทรวงศึกษาธิการ',
     department_name: 'งานวางแผนและงบประมาณ ฝ่ายแผนงานและความร่วมมือ',
     director_name: 'นายผู้อำนวยการ วิทยาลัยอาชีวศึกษาเชียงราย',
     planner_name: 'หัวหน้างานวางแผนและงบประมาณ',
-    default_operator: 'เจ้าหน้าที่แผนงาน',
+    default_operator: 'เจ้าหน้าที่งานวางแผนและงบประมาณ',
     default_rate_voc: '350',
     default_rate_high_voc: '350',
     default_rate_prison: '350',
     default_practice_hours: '18',
     fiscal_year_start_month: '10'
-  });
+  };
+
+  const [settings, setSettings] = useState<SystemSettings>(defaultCvcSettings);
+
+  // Step 2: Live Simulator State
+  const [simStudents, setSimStudents] = useState<number>(30);
+  const [simHours, setSimHours] = useState<number>(18);
+  const [simShareHours, setSimShareHours] = useState<number>(2);
 
   // Step 3: Academic Term State
   const [termYear, setTermYear] = useState<number>(2568);
   const [termSemester, setTermSemester] = useState<number>(1);
 
-  // Step 4: Seed Preset
-  const [seedDepartments, setSeedDepartments] = useState<boolean>(true);
+  // Step 4: Preset Master Data
+  const [presetType, setPresetType] = useState<'full' | 'tech' | 'commerce' | 'none'>('full');
+
+  // Step 5: Options
+  const [seedDemoAllocations, setSeedDemoAllocations] = useState<boolean>(true);
+
+  // Fetch initial settings & db status on mount
+  useEffect(() => {
+    const fetchInitData = async () => {
+      try {
+        setDbLoading(true);
+        const [dbRes, settingsRes] = await Promise.all([
+          fetch('/api/v1/settings/db-details').then((r) => r.json()),
+          fetch('/api/v1/settings').then((r) => r.json())
+        ]);
+
+        if (dbRes.success) {
+          setDbHealth(dbRes.data);
+        }
+        if (settingsRes.success && settingsRes.data && Object.keys(settingsRes.data).length > 0) {
+          setSettings((prev) => ({ ...prev, ...settingsRes.data }));
+        }
+      } catch (err) {
+        console.error('Failed to load initial diagnostic data:', err);
+      } finally {
+        setDbLoading(false);
+      }
+    };
+    fetchInitData();
+  }, []);
 
   const steps = [
-    { id: 1, title: 'ข้อมูลสถานศึกษา', icon: School, desc: 'ชื่อและหน่วยงาน' },
-    { id: 2, title: 'อัตราจัดสรร', icon: Calculator, desc: 'งบประมาณต่อหัว' },
+    { id: 1, title: 'ข้อมูลสถานศึกษา', icon: School, desc: 'ชื่อและผู้ลงนาม' },
+    { id: 2, title: 'อัตราจัดสรร', icon: Calculator, desc: 'เกณฑ์คำนวณงบ' },
     { id: 3, title: 'ปีการศึกษาแรก', icon: Calendar, desc: 'งวดจัดสรรเริ่มต้น' },
     { id: 4, title: 'แผนก & กลุ่มเรียน', icon: Building2, desc: 'โครงสร้างหลักสูตร' },
-    { id: 5, title: 'ยืนยัน & เริ่มใช้งาน', icon: Rocket, desc: 'พร้อมจัดสรรงบ' }
+    { id: 5, title: 'ตรวจสอบ & เริ่มระบบ', icon: Rocket, desc: 'ยืนยันและเปิดใช้' }
   ];
 
   const handleNext = () => {
@@ -65,9 +111,34 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
+  const handleApplyPresetCvc = () => {
+    setSettings(defaultCvcSettings);
+  };
+
+  const handleClearSettingsForm = () => {
+    setSettings({
+      college_name: '',
+      college_code: '',
+      affiliation: 'สำนักงานคณะกรรมการการอาชีวศึกษา',
+      department_name: 'งานวางแผนและงบประมาณ',
+      director_name: '',
+      planner_name: '',
+      default_operator: '',
+      default_rate_voc: '350',
+      default_rate_high_voc: '350',
+      default_rate_prison: '350',
+      default_practice_hours: '18',
+      fiscal_year_start_month: '10'
+    });
+  };
+
   const handleFinishStartup = async () => {
     setSubmitting(true);
+    setSubmitProgress('กำลังบันทึกข้อมูลสถานศึกษาและตั้งค่าระบบ...');
     try {
+      await new Promise((r) => setTimeout(r, 400));
+      setSubmitProgress('กำลังสร้างงวดปีการศึกษาและเปิดสถานะพร้อมใช้งาน...');
+
       const res = await fetch('/api/v1/settings/startup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,7 +148,9 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
             academic_year: Number(termYear),
             semester: Number(termSemester)
           },
-          seed_departments: seedDepartments
+          seed_departments: presetType !== 'none',
+          preset_type: presetType,
+          seed_demo_allocations: seedDemoAllocations
         })
       });
 
@@ -86,45 +159,67 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
         throw new Error(data.message || 'บันทึกการเริ่มต้นระบบล้มเหลว');
       }
 
+      setSubmitProgress('เสร็จสมบูรณ์! กำลังเตรียมแดชบอร์ด...');
+      await new Promise((r) => setTimeout(r, 500));
       setIsSuccess(true);
     } catch (err: any) {
       alert(err.message);
     } finally {
       setSubmitting(false);
+      setSubmitProgress('');
     }
   };
 
+  // Live simulation calculation
+  const simTotalBudget = simStudents * Number(settings.default_rate_voc || 350);
+  const simShareAmount =
+    simHours > 0
+      ? ((simTotalBudget * simShareHours) / simHours) * 0.25
+      : 0;
+  const simRemainingBudget = simTotalBudget - simShareAmount;
+
   return (
-    <div className="max-w-4xl mx-auto py-4 sm:py-6 px-4">
+    <div className="max-w-5xl mx-auto py-3 sm:py-6 px-3 sm:px-4">
       {/* Outer Card */}
-      <div className="bg-white rounded-3xl shadow-xl border border-slate-200/90 overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-xl border border-slate-200/90 overflow-hidden transition-all">
         {/* Top Header Banner */}
-        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 sm:p-8 relative overflow-hidden">
-          <div className="absolute right-0 top-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white p-6 sm:p-8 relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute left-1/3 bottom-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+
+          {/* Top Bar: Badge, DB Status, Cancel Button */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
             <div className="flex items-center space-x-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-inner">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-inner shrink-0">
                 <Rocket className="w-6 h-6 text-blue-300" />
               </div>
               <div>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 tracking-wider">
                     Initial Setup Wizard
                   </span>
-                  <span className="text-xs text-white/60">• วิทยาลัยอาชีวศึกษาเชียงราย</span>
+                  {dbHealth && (
+                    <span className="inline-flex items-center space-x-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>{dbHealth.server_version.split('-')[0]} พร้อมใช้งาน ({dbHealth.latency_ms} ms)</span>
+                    </span>
+                  )}
+                  {dbLoading && (
+                    <span className="text-[10px] text-white/50">กำลังตรวจสอบฐานข้อมูล...</span>
+                  )}
                 </div>
-                <h1 className="text-lg sm:text-2xl font-black text-white mt-1">
-                  ตัวช่วยตั้งค่าเริ่มต้นระบบ (Start Up Setting)
+                <h1 className="text-xl sm:text-2xl font-black text-white mt-1">
+                  ตัวช่วยตั้งค่าและติดตั้งระบบครั้งแรก (Start Up Setup)
                 </h1>
                 <p className="text-xs text-blue-200/80 mt-0.5">
-                  กำหนดค่าตั้งต้นระบบจัดสรรงบประมาณค่าวัสดุฝึก 5 ขั้นตอนเพื่อความพร้อมใช้งาน
+                  ระบบจัดสรรงบประมาณค่าวัสดุฝึกปฏิบัติการ • แนะนำการตั้งค่า 5 ขั้นตอนเพื่อความพร้อมสูงสุด
                 </p>
               </div>
             </div>
 
             <button
               onClick={onCancel}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white/70 hover:text-white bg-white/10 hover:bg-white/20 transition-all cursor-pointer self-start sm:self-auto"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white/70 hover:text-white bg-white/10 hover:bg-white/20 transition-all cursor-pointer self-start sm:self-auto border border-white/10"
             >
               ข้ามไปยังหน้าหลัก
             </button>
@@ -132,8 +227,8 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
 
           {/* Stepper Progress Bar */}
           {!isSuccess && (
-            <div className="mt-8 pt-6 border-t border-white/10">
-              <div className="grid grid-cols-5 gap-2">
+            <div className="mt-8 pt-6 border-t border-white/10 relative z-10">
+              <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
                 {steps.map((s) => {
                   const Icon = s.icon;
                   const isDone = s.id < currentStep;
@@ -145,14 +240,14 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                       onClick={() => s.id < currentStep && setCurrentStep(s.id)}
                       className={`flex flex-col items-center text-center cursor-pointer transition-all ${
                         isCurrent
-                          ? 'opacity-100 scale-105'
+                          ? 'opacity-100 scale-102'
                           : isDone
-                          ? 'opacity-80 hover:opacity-100'
+                          ? 'opacity-85 hover:opacity-100'
                           : 'opacity-40'
                       }`}
                     >
                       <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 transition-all text-xs font-bold ${
+                        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center mb-1.5 transition-all text-xs font-bold ${
                           isDone
                             ? 'bg-emerald-500 text-white shadow-md'
                             : isCurrent
@@ -160,12 +255,12 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                             : 'bg-white/15 text-white/70'
                         }`}
                       >
-                        {isDone ? <Check className="w-4 h-4 stroke-[3]" /> : <Icon className="w-4 h-4" />}
+                        {isDone ? <Check className="w-4 h-4 stroke-[3]" /> : <Icon className="w-4 h-4 sm:w-5 sm:h-5" />}
                       </div>
-                      <span className="text-[11px] font-bold text-white hidden sm:block">
+                      <span className="text-[11px] font-bold text-white hidden sm:block truncate max-w-full">
                         {s.title}
                       </span>
-                      <span className="text-[9px] text-white/60 hidden md:block">
+                      <span className="text-[9px] text-white/60 hidden md:block truncate max-w-full">
                         {s.desc}
                       </span>
                     </div>
@@ -180,44 +275,62 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
         <div className="p-6 sm:p-8">
           {isSuccess ? (
             /* Success Screen */
-            <div className="py-8 text-center space-y-5 animate-fade-in">
-              <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+            <div className="py-8 text-center space-y-6 animate-fade-in">
+              <div className="w-20 h-20 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner border border-emerald-200">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
 
               <div>
-                <h2 className="text-2xl font-black text-slate-900">
-                  ตั้งค่าเริ่มต้นระบบเรียบร้อยแล้ว!
+                <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200">
+                  Setup Completed
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
+                  ตั้งค่าเริ่มต้นระบบเรียบร้อยสมบูรณ์!
                 </h2>
-                <p className="text-sm text-slate-500 max-w-md mx-auto mt-2">
-                  ระบบได้บันทึกข้อมูลสถานศึกษา กำหนดอัตราจัดสรร และเปิดงวดภาคเรียนที่ {termSemester}/{termYear} ให้เป็นภาคเรียนปัจจุบันพร้อมใช้งาน
+                <p className="text-sm text-slate-500 max-w-lg mx-auto mt-2">
+                  ระบบได้บันทึกข้อมูลสถานศึกษา กำหนดเกณฑ์คำนวณงบประมาณ ติดตั้งแผนกวิชา และเปิดงวดภาคเรียนที่{' '}
+                  <strong className="text-slate-800">{termSemester}/{termYear}</strong> พร้อมเริ่มจัดสรรงบประมาณทันที
                 </p>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 max-w-lg mx-auto text-left space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-200">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 max-w-xl mx-auto text-left space-y-2.5 text-xs">
+                <div className="flex justify-between py-1.5 border-b border-slate-200">
                   <span className="text-slate-500">สถานศึกษา:</span>
-                  <span className="font-bold text-slate-800">{settings.college_name}</span>
+                  <span className="font-bold text-slate-800">
+                    {settings.college_name} ({settings.college_code})
+                  </span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-200">
+                <div className="flex justify-between py-1.5 border-b border-slate-200">
                   <span className="text-slate-500">ภาคเรียนปัจจุบัน:</span>
-                  <span className="font-bold text-blue-700">ภาคเรียนที่ {termSemester}/{termYear} (OPEN)</span>
+                  <span className="font-bold text-blue-700">
+                    ภาคเรียนที่ {termSemester}/{termYear} (สถานะ: OPEN)
+                  </span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-slate-200">
+                <div className="flex justify-between py-1.5 border-b border-slate-200">
                   <span className="text-slate-500">อัตราต่อหัว ปวช. / ปวส.:</span>
-                  <span className="font-bold text-slate-800">{settings.default_rate_voc} บ. / {settings.default_rate_high_voc} บ.</span>
+                  <span className="font-bold text-slate-800">
+                    {settings.default_rate_voc} บาท / {settings.default_rate_high_voc} บาท
+                  </span>
                 </div>
-                <div className="flex justify-between py-1">
+                <div className="flex justify-between py-1.5 border-b border-slate-200">
                   <span className="text-slate-500">โครงสร้างแผนกวิชา:</span>
-                  <span className="font-bold text-emerald-700">ติดตั้งสำเร็จพร้อมใช้งาน</span>
+                  <span className="font-bold text-emerald-700">
+                    {presetType === 'none' ? 'โครงสร้างเปล่า (กำหนดเอง)' : 'ติดตั้งสำเร็จพร้อมกลุ่มเรียน'}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-slate-500">ข้อมูลรายการจัดสรร:</span>
+                  <span className="font-bold text-slate-800">
+                    {seedDemoAllocations ? 'มีรายการตัวอย่างสำหรับการทดสอบ' : 'ตารางว่างพร้อมบันทึกจริง'}
+                  </span>
                 </div>
               </div>
 
-              <div className="pt-4">
+              <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button
                   type="button"
                   onClick={onComplete}
-                  className="inline-flex items-center space-x-2 px-8 py-3.5 rounded-2xl text-white font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25 transition-all cursor-pointer transform hover:-translate-y-0.5"
+                  className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-8 py-3.5 rounded-2xl text-white font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25 transition-all cursor-pointer transform hover:-translate-y-0.5"
                 >
                   <Rocket className="w-5 h-5" />
                   <span>เข้าสู่หน้าจัดสรรงบประมาณทันที</span>
@@ -226,21 +339,45 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
             </div>
           ) : (
             <div>
-              {/* STEP 1: ORGANIZATION */}
+              {/* STEP 1: ORGANIZATION & SIGNERS */}
               {currentStep === 1 && (
-                <div className="space-y-5 animate-fade-in">
-                  <div>
-                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                      ขั้นตอนที่ 1 จาก 5
-                    </span>
-                    <h3 className="text-lg font-bold text-slate-900 mt-0.5">
-                      ข้อมูลสถานศึกษาและหน่วยงานผู้รับผิดชอบ
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      ระบุชื่อสถานศึกษา รหัสย่อ และหน่วยงานสังกัดสำหรับแสดงในหัวรายงานและเอกสารทางการเงิน
-                    </p>
+                <div className="space-y-6 animate-fade-in">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                        ขั้นตอนที่ 1 จาก 5
+                      </span>
+                      <h3 className="text-lg font-bold text-slate-900 mt-0.5">
+                        ข้อมูลสถานศึกษาและผู้ลงนามในรายงาน
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        ระบุชื่อสถานศึกษา รหัสย่อ และผู้มีอำนาจลงนามสำหรับแสดงในหัวเอกสารการเงินและรายงานสรุป
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-2 self-start sm:self-auto shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleApplyPresetCvc}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center space-x-1 cursor-pointer"
+                        title="กรอกข้อมูลวิทยาลัยอาชีวศึกษาเชียงรายอัตโนมัติ"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                        <span>ใช้วิทยาลัยอาชีวศึกษาเชียงราย</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearSettingsForm}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center space-x-1 cursor-pointer"
+                        title="ล้างข้อมูลในฟอร์มเพื่อกรอกใหม่"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>ล้างฟอร์ม</span>
+                      </button>
+                    </div>
                   </div>
 
+                  {/* Form fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -250,6 +387,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                         type="text"
                         value={settings.college_name}
                         onChange={(e) => setSettings({ ...settings, college_name: e.target.value })}
+                        placeholder="เช่น วิทยาลัยอาชีวศึกษาเชียงราย"
                         required
                         className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
@@ -257,14 +395,15 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
 
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        รหัสย่อสถานศึกษา <span className="text-red-500">*</span>
+                        รหัสย่อสถานศึกษา (ตัวย่อภาษาอังกฤษ) <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={settings.college_code}
                         onChange={(e) => setSettings({ ...settings, college_code: e.target.value })}
+                        placeholder="เช่น CVC"
                         required
-                        className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none uppercase font-mono"
+                        className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none uppercase font-mono font-bold"
                       />
                     </div>
 
@@ -276,6 +415,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                         type="text"
                         value={settings.affiliation}
                         onChange={(e) => setSettings({ ...settings, affiliation: e.target.value })}
+                        placeholder="เช่น สำนักงานคณะกรรมการการอาชีวศึกษา"
                         className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
@@ -288,55 +428,90 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                         type="text"
                         value={settings.department_name}
                         onChange={(e) => setSettings({ ...settings, department_name: e.target.value })}
+                        placeholder="เช่น งานวางแผนและงบประมาณ"
                         className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200">
-                    <h4 className="text-xs font-bold text-slate-800 mb-3">
-                      ผู้บริหารและผู้ลงนามในรายงานสรุป
+                  {/* Signers Section */}
+                  <div className="pt-4 border-t border-slate-200">
+                    <h4 className="text-xs font-bold text-slate-800 mb-3 flex items-center space-x-1.5">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      <span>รายชื่อผู้บริหารและผู้ลงนามรับรองรายงาน</span>
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          ชื่อผู้อำนวยการสถานศึกษา
+                          ผู้อำนวยการสถานศึกษา
                         </label>
                         <input
                           type="text"
                           value={settings.director_name}
                           onChange={(e) => setSettings({ ...settings, director_name: e.target.value })}
+                          placeholder="ชื่อ-นามสกุล ผู้อำนวยการ"
                           className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          ชื่อหัวหน้างานวางแผนและงบประมาณ
+                          หัวหน้างานวางแผนและงบประมาณ
                         </label>
                         <input
                           type="text"
                           value={settings.planner_name}
                           onChange={(e) => setSettings({ ...settings, planner_name: e.target.value })}
+                          placeholder="ชื่อ-นามสกุล หัวหน้างาน"
                           className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          เจ้าหน้าที่ผู้จัดทำงบประมาณ
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.default_operator}
+                          onChange={(e) => setSettings({ ...settings, default_operator: e.target.value })}
+                          placeholder="ชื่อ-นามสกุล เจ้าหน้าที่"
+                          className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Header Live Preview Banner */}
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      ตัวอย่างหัวเอกสารรายงานจริง (Live Preview)
+                    </span>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 text-center shadow-2xs">
+                      <div className="text-sm font-extrabold text-slate-800">
+                        {settings.college_name || 'ชื่อสถานศึกษา'}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        {settings.department_name} • {settings.affiliation}
+                      </div>
+                      <div className="text-[10px] text-blue-600 font-semibold mt-1">
+                        รายงานการจัดสรรงบประมาณค่าวัสดุฝึกประจำภาคเรียน
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* STEP 2: BUDGET RATES */}
+              {/* STEP 2: RATES & SIMULATOR */}
               {currentStep === 2 && (
-                <div className="space-y-5 animate-fade-in">
+                <div className="space-y-6 animate-fade-in">
                   <div>
                     <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
                       ขั้นตอนที่ 2 จาก 5
                     </span>
                     <h3 className="text-lg font-bold text-slate-900 mt-0.5">
-                      อัตราค่าจัดสรรมาตรฐานและพารามิเตอร์การคำนวณ
+                      อัตราค่าจัดสรรมาตรฐานและระบบจำลองสูตรคำนวณ
                     </h3>
                     <p className="text-xs text-slate-500">
-                      กำหนดอัตราค่าวัสดุฝึกต่อหัวเริ่มต้นตามระเบียบงบประมาณของแต่ละระดับการศึกษา
+                      กำหนดอัตราค่าวัสดุฝึกต่อหัวตามระเบียบงบประมาณของแต่ละระดับ และทดสอบสูตรปันส่วนสอนช่วย
                     </p>
                   </div>
 
@@ -354,6 +529,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                         required
                         className="w-full text-base font-black text-blue-700 bg-white border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
                       />
+                      <span className="text-[10px] text-slate-500 mt-1 block">มาตรฐาน สอศ.: 350 บาท</span>
                     </div>
 
                     <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-200">
@@ -369,6 +545,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                         required
                         className="w-full text-base font-black text-indigo-700 bg-white border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
                       />
+                      <span className="text-[10px] text-slate-500 mt-1 block">มาตรฐาน สอศ.: 350 บาท</span>
                     </div>
 
                     <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -384,31 +561,128 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                         required
                         className="w-full text-base font-black text-slate-800 bg-white border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
                       />
+                      <span className="text-[10px] text-slate-500 mt-1 block">โครงการพิเศษ: 350 บาท</span>
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      ชั่วโมงฝึกปฏิบัติตั้งต้นเริ่มต้น (ชม.)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      value={settings.default_practice_hours}
-                      onChange={(e) => setSettings({ ...settings, default_practice_hours: e.target.value })}
-                      className="w-48 text-xs bg-white border border-slate-300 rounded-xl p-2.5 font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
-                    />
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      ค่าตั้งต้นสำหรับใช้ในสูตรสัดส่วนการปันส่วนสอนช่วย
-                    </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        ชั่วโมงฝึกปฏิบัติตั้งต้น (ชม./สัปดาห์ หรือ ภาคเรียน)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={settings.default_practice_hours}
+                        onChange={(e) => setSettings({ ...settings, default_practice_hours: e.target.value })}
+                        className="w-full text-sm bg-white border border-slate-300 rounded-xl p-2.5 font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        ใช้เป็นค่ามาตรฐานในช่องรวมชั่วโมงฝึกปฏิบัติ
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        เดือนเริ่มต้นปีงบประมาณ
+                      </label>
+                      <select
+                        value={settings.fiscal_year_start_month}
+                        onChange={(e) => setSettings({ ...settings, fiscal_year_start_month: e.target.value })}
+                        className="w-full text-xs font-semibold bg-white border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
+                      >
+                        <option value="10">ตุลาคม (ระบบงบประมาณราชการไทย)</option>
+                        <option value="1">มกราคม (ปีปฏิทิน)</option>
+                        <option value="5">พฤษภาคม (เปิดภาคเรียนที่ 1)</option>
+                      </select>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        กำหนดรอบปฏิทินปีงบประมาณของสถานศึกษา
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Interactive Calculation Simulator */}
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-50/70 to-blue-50/70 border border-indigo-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold text-indigo-900 flex items-center space-x-1.5">
+                        <Sliders className="w-4 h-4 text-indigo-600" />
+                        <span>เครื่องจำลองสูตรคำนวณงบประมาณ (Formula Simulator)</span>
+                      </span>
+                      <span className="text-[11px] text-indigo-600 bg-white/80 px-2 py-0.5 rounded-md border border-indigo-200 font-medium">
+                        สูตรมาตรฐานวิทยาลัย
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          ทดลองใส่จำนวนนักเรียน (คน):
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="200"
+                          value={simStudents}
+                          onChange={(e) => setSimStudents(Number(e.target.value))}
+                          className="w-full text-xs bg-white border border-indigo-200 rounded-lg p-2 font-bold text-slate-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          รวมชั่วโมงปฏิบัติ (ชม.):
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="50"
+                          value={simHours}
+                          onChange={(e) => setSimHours(Number(e.target.value))}
+                          className="w-full text-xs bg-white border border-indigo-200 rounded-lg p-2 font-bold text-slate-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          ชั่วโมงสอนช่วย (ชม.):
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="20"
+                          value={simShareHours}
+                          onChange={(e) => setSimShareHours(Number(e.target.value))}
+                          className="w-full text-xs bg-white border border-indigo-200 rounded-lg p-2 font-bold text-slate-800"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-indigo-200/60 text-xs">
+                      <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100">
+                        <span className="text-[10px] text-slate-500 block">งบคำนวณตั้งต้น (100%):</span>
+                        <span className="font-extrabold text-blue-700 text-sm">
+                          {simTotalBudget.toLocaleString()} บาท
+                        </span>
+                      </div>
+                      <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100">
+                        <span className="text-[10px] text-amber-600 block">โอนปันส่วนสอนช่วย (25%):</span>
+                        <span className="font-extrabold text-amber-700 text-sm">
+                          {simShareAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                        </span>
+                      </div>
+                      <div className="bg-white/90 p-2.5 rounded-xl border border-indigo-100">
+                        <span className="text-[10px] text-emerald-600 block">คงเหลือแผนกตนเอง:</span>
+                        <span className="font-extrabold text-emerald-700 text-sm">
+                          {simRemainingBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* STEP 3: ACADEMIC TERM */}
               {currentStep === 3 && (
-                <div className="space-y-5 animate-fade-in">
+                <div className="space-y-6 animate-fade-in">
                   <div>
                     <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
                       ขั้นตอนที่ 3 จาก 5
@@ -433,7 +707,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                         value={termYear}
                         onChange={(e) => setTermYear(Number(e.target.value))}
                         required
-                        className="w-full text-sm font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
+                        className="w-full text-base font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
                       />
                     </div>
 
@@ -444,95 +718,222 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                       <select
                         value={termSemester}
                         onChange={(e) => setTermSemester(Number(e.target.value))}
-                        className="w-full text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
+                        className="w-full text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
                       >
-                        <option value={1}>ภาคเรียนที่ 1</option>
-                        <option value={2}>ภาคเรียนที่ 2</option>
-                        <option value={3}>ภาคเรียนที่ 3 (ฤดูร้อน)</option>
+                        <option value={1}>ภาคเรียนที่ 1 (พฤษภาคม - ตุลาคม)</option>
+                        <option value={2}>ภาคเรียนที่ 2 (พฤศจิกายน - เมษายน)</option>
+                        <option value={3}>ภาคเรียนที่ 3 (ภาคฤดูร้อน)</option>
                       </select>
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start space-x-3">
+                  <div className="p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200 flex items-start space-x-3.5">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-xs font-bold text-emerald-900">
-                        สถานะงวด: OPEN (เปิดงวดจัดสรรทันที)
+                    <div className="space-y-1">
+                      <span className="text-xs font-bold text-emerald-900 block">
+                        สถานะงวดอัตโนมัติ: OPEN (เปิดงวดจัดสรรทันที)
                       </span>
-                      <p className="text-[11px] text-emerald-700 mt-0.5">
-                        ภาคเรียนที่ {termSemester}/{termYear} จะถูกกำหนดให้เป็น <strong>ภาคเรียนปัจจุบัน (Active Current Term)</strong> สำหรับการคำนวณและจัดสรรงบประมาณทันทีหลังเสร็จสิ้น
+                      <p className="text-[11px] text-emerald-700 leading-relaxed">
+                        ภาคเรียนที่ <strong>{termSemester}/{termYear}</strong> จะถูกตั้งเป็น <strong>ภาคเรียนปัจจุบัน (Active Current Term)</strong> สำหรับการบันทึกรายการคำนวณและสรุปงบประมาณทันทีหลังการติดตั้งเสร็จสิ้น
                       </p>
                     </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                    <div className="flex items-center space-x-2 text-slate-600">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                      <span>ต้องการเพิ่มภาคเรียนย้อนหลังหรือปีการศึกษาอื่นเพิ่มเติม?</span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-blue-600">
+                      สามารถเพิ่มได้ตลอดเวลาในหน้าตั้งค่า
+                    </span>
                   </div>
                 </div>
               )}
 
               {/* STEP 4: PRESET MASTER DATA */}
               {currentStep === 4 && (
-                <div className="space-y-5 animate-fade-in">
+                <div className="space-y-6 animate-fade-in">
                   <div>
                     <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
                       ขั้นตอนที่ 4 จาก 5
                     </span>
                     <h3 className="text-lg font-bold text-slate-900 mt-0.5">
-                      แผนกวิชาและกลุ่มเรียนเริ่มต้น (Preset Master Data)
+                      แผนกวิชาและกลุ่มเรียนเริ่มต้น (Curriculum & Department Structure)
                     </h3>
                     <p className="text-xs text-slate-500">
-                      เลือกว่าจะติดตั้งโครงสร้างแผนกวิชาชีพ และแผนกวิชาบริการมาตรฐานไว้ล่วงหน้าหรือไม่
+                      เลือกชุดแม่แบบโครงสร้างแผนกวิชาและกลุ่มเรียนตัวอย่างเพื่อความสะดวกรวดเร็วในการใช้งาน
                     </p>
                   </div>
 
-                  <label className="flex items-start space-x-3 p-4 rounded-2xl bg-blue-50/70 border border-blue-200 cursor-pointer hover:bg-blue-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={seedDepartments}
-                      onChange={(e) => setSeedDepartments(e.target.checked)}
-                      className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 mt-0.5 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-xs font-bold text-slate-900">
-                        ติดตั้งโครงสร้างแผนกวิชาและกลุ่มเรียนมาตรฐานอัตโนมัติ (แนะนำ)
-                      </span>
-                      <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                        ระบบจะสร้างแผนกวิชาชีพ (IT, ช่างยนต์, ไฟฟ้า, อิเล็กทรอนิกส์, บัญชี, การตลาด, โรงแรม), แผนกวิชาบริการ (สามัญสัมพันธ์, ภาษาต่างประเทศ) และระดับชั้น ปวช./ปวส. ให้ทันที (คุณสามารถเพิ่มหรือแก้ไขเพิ่มเติมได้ตลอดเวลาในหน้าตั้งค่า)
+                  {/* Preset Options Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {/* Option 1: Full */}
+                    <div
+                      onClick={() => setPresetType('full')}
+                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                        presetType === 'full'
+                          ? 'border-blue-600 bg-blue-50/50 shadow-md ring-2 ring-blue-200'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-extrabold text-slate-900 flex items-center space-x-1.5">
+                          <Layers className="w-4 h-4 text-blue-600" />
+                          <span>มาตรฐานวิทยาลัยอาชีวศึกษา (ครบวงจร)</span>
+                        </span>
+                        {presetType === 'full' && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white">
+                            แนะนำ
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mb-2">
+                        ติดตั้ง 13 แผนกวิชาชีพ และแผนกวิชาบริการ (IT, ยนต์, ไฟฟ้า, อิเล็กทรอนิกส์, บัญชี, การตลาด, โรงแรม, อาหาร, สามัญสัมพันธ์ ฯลฯ) พร้อมกลุ่มเรียนตัวอย่าง
                       </p>
+                      <div className="text-[10px] font-bold text-blue-700">
+                        ✓ แผนกวิชาชีพ 11 แผนก • ✓ แผนกวิชาบริการ 2 แผนก
+                      </div>
                     </div>
-                  </label>
 
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                    <h4 className="text-xs font-bold text-slate-800">
-                      ตัวอย่างแผนกวิชาที่จะติดตั้ง:
-                    </h4>
-                    <div className="flex flex-wrap gap-2 text-[11px]">
-                      <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
-                        💻 แผนกเทคโนโลยีสารสนเทศ
-                      </span>
-                      <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
-                        🚗 แผนกช่างยนต์
-                      </span>
-                      <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
-                        ⚡ แผนกช่างไฟฟ้ากำลัง
-                      </span>
-                      <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
-                        📊 แผนกการบัญชี
-                      </span>
-                      <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
-                        🛍️ แผนกการตลาด
-                      </span>
-                      <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 font-bold text-amber-800">
-                        📚 แผนกสามัญสัมพันธ์ (วิชาบริการ)
-                      </span>
-                      <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 font-bold text-amber-800">
-                        🌐 แผนกภาษาต่างประเทศ (วิชาบริการ)
-                      </span>
+                    {/* Option 2: Tech */}
+                    <div
+                      onClick={() => setPresetType('tech')}
+                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                        presetType === 'tech'
+                          ? 'border-blue-600 bg-blue-50/50 shadow-md ring-2 ring-blue-200'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-extrabold text-slate-900 flex items-center space-x-1.5">
+                          <Building2 className="w-4 h-4 text-indigo-600" />
+                          <span>สายช่างอุตสาหกรรมและเทคโนโลยี</span>
+                        </span>
+                        {presetType === 'tech' && (
+                          <CheckCircle className="w-4 h-4 text-blue-600" />
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mb-2">
+                        เหมาะสำหรับวิทยาลัยเทคนิค: แผนกเทคโนโลยีสารสนเทศ, ช่างยนต์, ไฟฟ้ากำลัง, อิเล็กทรอนิกส์, สามัญสัมพันธ์ และภาษาต่างประเทศ
+                      </p>
+                      <div className="text-[10px] font-bold text-indigo-700">
+                        ✓ แผนกวิชาชีพ 4 แผนก • ✓ แผนกวิชาบริการ 2 แผนก
+                      </div>
+                    </div>
+
+                    {/* Option 3: Commerce */}
+                    <div
+                      onClick={() => setPresetType('commerce')}
+                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                        presetType === 'commerce'
+                          ? 'border-blue-600 bg-blue-50/50 shadow-md ring-2 ring-blue-200'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-extrabold text-slate-900 flex items-center space-x-1.5">
+                          <Building2 className="w-4 h-4 text-emerald-600" />
+                          <span>สายพาณิชยกรรมและการบริการ</span>
+                        </span>
+                        {presetType === 'commerce' && (
+                          <CheckCircle className="w-4 h-4 text-blue-600" />
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mb-2">
+                        เหมาะสำหรับสายพาณิชย์: บัญชี, การตลาด, เลขานุการ, การโรงแรม, อาหารและโภชนาการ และแผนกวิชาสามัญสัมพันธ์
+                      </p>
+                      <div className="text-[10px] font-bold text-emerald-700">
+                        ✓ แผนกวิชาชีพ 5 แผนก • ✓ แผนกวิชาบริการ 2 แผนก
+                      </div>
+                    </div>
+
+                    {/* Option 4: None */}
+                    <div
+                      onClick={() => setPresetType('none')}
+                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                        presetType === 'none'
+                          ? 'border-blue-600 bg-blue-50/50 shadow-md ring-2 ring-blue-200'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-extrabold text-slate-900 flex items-center space-x-1.5">
+                          <RotateCcw className="w-4 h-4 text-slate-600" />
+                          <span>โครงสร้างว่างเปล่า (กำหนดเองภายหลัง)</span>
+                        </span>
+                        {presetType === 'none' && (
+                          <CheckCircle className="w-4 h-4 text-blue-600" />
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mb-2">
+                        ไม่ติดตั้งแผนกเริ่มต้น ผู้ดูแลระบบสามารถสร้างและกำหนดรายชื่อแผนกและกลุ่มเรียนเองทั้งหมดในเมนูตั้งค่า
+                      </p>
+                      <div className="text-[10px] font-bold text-slate-600">
+                        เริ่มต้นด้วยตารางว่างเปล่า
+                      </div>
                     </div>
                   </div>
+
+                  {/* Department Chips Preview */}
+                  {presetType !== 'none' && (
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-slate-800">
+                          ตัวอย่างแผนกวิชาที่จะสร้างในระบบ:
+                        </h4>
+                        <span className="text-[10px] text-slate-400">
+                          สามารถปรับเปลี่ยนชื่อหรือเพิ่มแผนกอื่นได้เสมอ
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-[11px]">
+                        {(presetType === 'full' || presetType === 'tech') && (
+                          <>
+                            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
+                              💻 แผนกเทคโนโลยีสารสนเทศ
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
+                              🚗 แผนกช่างยนต์
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
+                              ⚡ แผนกช่างไฟฟ้ากำลัง
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
+                              📻 แผนกช่างอิเล็กทรอนิกส์
+                            </span>
+                          </>
+                        )}
+                        {(presetType === 'full' || presetType === 'commerce') && (
+                          <>
+                            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
+                              📊 แผนกการบัญชี
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
+                              🛍️ แผนกการตลาด
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
+                              🏨 แผนกการโรงแรมและการท่องเที่ยว
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-medium text-slate-700">
+                              🍳 แผนกอาหารและโภชนาการ
+                            </span>
+                          </>
+                        )}
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 font-bold text-amber-800">
+                          📚 แผนกสามัญสัมพันธ์ (วิชาบริการ)
+                        </span>
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 font-bold text-amber-800">
+                          🌐 แผนกภาษาต่างประเทศ (วิชาบริการ)
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* STEP 5: CONFIRM & LAUNCH */}
+              {/* STEP 5: REVIEW & LAUNCH */}
               {currentStep === 5 && (
-                <div className="space-y-5 animate-fade-in">
+                <div className="space-y-6 animate-fade-in">
                   <div>
                     <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
                       ขั้นตอนที่ 5 จาก 5
@@ -545,19 +946,24 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                     </p>
                   </div>
 
+                  {/* Summary Checklist */}
                   <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3 text-xs">
                     <div className="flex justify-between py-1.5 border-b border-slate-200">
                       <span className="text-slate-500">ชื่อสถานศึกษา:</span>
-                      <span className="font-bold text-slate-900">{settings.college_name} ({settings.college_code})</span>
+                      <span className="font-bold text-slate-900">
+                        {settings.college_name} ({settings.college_code})
+                      </span>
                     </div>
                     <div className="flex justify-between py-1.5 border-b border-slate-200">
-                      <span className="text-slate-500">หน่วยงานสังกัด:</span>
-                      <span className="font-medium text-slate-800">{settings.affiliation}</span>
+                      <span className="text-slate-500">หน่วยงานสังกัด / ฝ่ายงาน:</span>
+                      <span className="font-medium text-slate-800">
+                        {settings.affiliation} • {settings.department_name}
+                      </span>
                     </div>
                     <div className="flex justify-between py-1.5 border-b border-slate-200">
                       <span className="text-slate-500">ภาคเรียนเริ่มต้น:</span>
                       <span className="font-bold text-blue-700">
-                        ภาคเรียนที่ {termSemester}/{termYear} (เปิดงวดจัดสรรทันที)
+                        ภาคเรียนที่ {termSemester}/{termYear} (สถานะ: เปิดงวดทันที)
                       </span>
                     </div>
                     <div className="flex justify-between py-1.5 border-b border-slate-200">
@@ -566,20 +972,56 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                         {settings.default_rate_voc} บ. / {settings.default_rate_high_voc} บ. / {settings.default_rate_prison} บ.
                       </span>
                     </div>
-                    <div className="flex justify-between py-1.5">
-                      <span className="text-slate-500">ติดตั้งแผนกวิชามาตรฐาน:</span>
+                    <div className="flex justify-between py-1.5 border-b border-slate-200">
+                      <span className="text-slate-500">ชุดโครงสร้างแผนกวิชา:</span>
                       <span className="font-bold text-emerald-700">
-                        {seedDepartments ? 'ใช่ (สร้างแผนกและกลุ่มเรียนเริ่มต้น)' : 'ไม่ (กำหนดเองภายหลัง)'}
+                        {presetType === 'full'
+                          ? 'มาตรฐานวิทยาลัยครบวงจร'
+                          : presetType === 'tech'
+                          ? 'สายช่างอุตสาหกรรม'
+                          : presetType === 'commerce'
+                          ? 'สายพาณิชยกรรม'
+                          : 'โครงสร้างว่างเปล่า'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1.5">
+                      <span className="text-slate-500">ฐานข้อมูล:</span>
+                      <span className="font-semibold text-slate-800">
+                        MariaDB 11.4 ({dbHealth ? `เชื่อมต่อสำเร็จ, ${dbHealth.latency_ms} ms` : 'พร้อมบันทึก'})
                       </span>
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 flex items-center space-x-3 text-xs text-blue-900">
-                    <Sparkles className="w-5 h-5 text-blue-600 shrink-0" />
-                    <span>
-                      เมื่อกดยืนยัน ระบบจะตั้งค่าและนำคุณเข้าสู่แดชบอร์ดการจัดสรรงบประมาณทันที
-                    </span>
-                  </div>
+                  {/* Seed Demo Option */}
+                  <label className="flex items-start space-x-3 p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200 cursor-pointer hover:bg-indigo-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={seedDemoAllocations}
+                      onChange={(e) => setSeedDemoAllocations(e.target.checked)}
+                      className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 mt-0.5 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-indigo-950">
+                        โหลดรายการจัดสรรตัวอย่าง (Demo Allocations) สำหรับทดลองระบบ
+                      </span>
+                      <p className="text-[11px] text-indigo-700 mt-0.5 leading-relaxed">
+                        ระบบจะสร้างรายการจัดสรรงบประมาณตัวอย่าง พร้อมการคำนวณโอนสอนช่วยให้แผนกสามัญสัมพันธ์ เพื่อให้คุณเห็นตัวเลขและทดสอบรายงานได้ทันที (สามารถลบหรือล้างข้อมูลได้ทุกเมื่อในหน้าตั้งค่า)
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Submission Progress indicator */}
+                  {submitting && (
+                    <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 space-y-2 text-xs">
+                      <div className="flex items-center space-x-2 text-blue-800 font-bold">
+                        <Activity className="w-4 h-4 animate-spin text-blue-600" />
+                        <span>{submitProgress}</span>
+                      </div>
+                      <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                        <div className="bg-blue-600 h-2 rounded-full animate-pulse w-3/4" />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -591,7 +1033,7 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                       type="button"
                       onClick={handleBack}
                       disabled={submitting}
-                      className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center space-x-1.5 cursor-pointer"
+                      className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
                     >
                       <ArrowLeft className="w-4 h-4" />
                       <span>ย้อนกลับ</span>
@@ -614,10 +1056,10 @@ export const StartupSettingPage: React.FC<StartupSettingPageProps> = ({
                       type="button"
                       onClick={handleFinishStartup}
                       disabled={submitting}
-                      className="px-8 py-3 rounded-2xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/20 flex items-center space-x-2 transition-all cursor-pointer"
+                      className="px-8 py-3 rounded-2xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-md shadow-blue-500/25 flex items-center space-x-2 transition-all cursor-pointer disabled:opacity-50"
                     >
                       <Rocket className="w-4 h-4" />
-                      <span>{submitting ? 'กำลังเริ่มต้นระบบ...' : 'บันทึกและเริ่มต้นระบบ'}</span>
+                      <span>{submitting ? 'กำลังติดตั้งระบบ...' : 'บันทึกและเริ่มใช้งานระบบ'}</span>
                     </button>
                   )}
                 </div>

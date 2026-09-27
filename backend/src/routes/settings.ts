@@ -337,7 +337,13 @@ router.post('/reset-demo', async (_req: Request, res: Response): Promise<void> =
 
 // POST /api/v1/settings/startup (Execute initial system setup wizard)
 router.post('/startup', async (req: Request, res: Response): Promise<void> => {
-  const { settings = {}, initial_term = {}, seed_departments = true } = req.body;
+  const {
+    settings = {},
+    initial_term = {},
+    seed_departments = true,
+    preset_type = 'full',
+    seed_demo_allocations = false
+  } = req.body;
 
   const conn = await pool.getConnection();
   try {
@@ -385,65 +391,110 @@ router.post('/startup', async (req: Request, res: Response): Promise<void> => {
       termId = termRes.insertId;
     }
 
-    // 3. Seed Preset Departments if requested
-    if (seed_departments) {
-      // Ensure education levels
-      const levels = [
-        ['VOC', 'ปวช.'],
-        ['HIGH_VOC', 'ปวส.'],
-        ['PRISON', 'ปวช.เรือนจำ']
-      ];
-      for (const [code, name] of levels) {
-        await conn.query(
-          'INSERT IGNORE INTO education_levels (code, name) VALUES (?, ?)',
-          [code, name]
-        );
+    // 3. Seed Education Levels
+    const levels = [
+      ['VOC', 'ปวช.'],
+      ['HIGH_VOC', 'ปวส.'],
+      ['PRISON', 'ปวช.เรือนจำ']
+    ];
+    for (const [code, name] of levels) {
+      await conn.query(
+        'INSERT IGNORE INTO education_levels (code, name) VALUES (?, ?)',
+        [code, name]
+      );
+    }
+
+    // 4. Seed Departments by preset
+    if (seed_departments && preset_type !== 'none') {
+      let deptList: [string, string, number][] = [];
+
+      if (preset_type === 'tech') {
+        deptList = [
+          ['IT', 'แผนกวิชาเทคโนโลยีสารสนเทศ', 0],
+          ['AUTO', 'แผนกวิชาช่างยนต์', 0],
+          ['ELEC', 'แผนกวิชาช่างไฟฟ้ากำลัง', 0],
+          ['ELECT', 'แผนกวิชาช่างอิเล็กทรอนิกส์', 0],
+          ['GEN', 'แผนกวิชาสามัญสัมพันธ์ (วิชาพื้นฐาน)', 1],
+          ['LANG', 'แผนกวิชาภาษาต่างประเทศ (สอนช่วย)', 1]
+        ];
+      } else if (preset_type === 'commerce') {
+        deptList = [
+          ['ACCT', 'แผนกวิชาการบัญชี', 0],
+          ['MKT', 'แผนกวิชาการตลาด', 0],
+          ['HOTEL', 'แผนกวิชาการโรงแรมและการท่องเที่ยว', 0],
+          ['SEC', 'แผนกวิชาการเลขานุการ', 0],
+          ['FOOD', 'แผนกวิชาอาหารและโภชนาการ', 0],
+          ['GEN', 'แผนกวิชาสามัญสัมพันธ์ (วิชาพื้นฐาน)', 1],
+          ['LANG', 'แผนกวิชาภาษาต่างประเทศ (สอนช่วย)', 1]
+        ];
+      } else {
+        // full (default)
+        deptList = [
+          ['IT', 'แผนกวิชาเทคโนโลยีสารสนเทศ', 0],
+          ['AUTO', 'แผนกวิชาช่างยนต์', 0],
+          ['ELEC', 'แผนกวิชาช่างไฟฟ้ากำลัง', 0],
+          ['ELECT', 'แผนกวิชาช่างอิเล็กทรอนิกส์', 0],
+          ['ACCT', 'แผนกวิชาการบัญชี', 0],
+          ['MKT', 'แผนกวิชาการตลาด', 0],
+          ['HOTEL', 'แผนกวิชาการโรงแรมและการท่องเที่ยว', 0],
+          ['SEC', 'แผนกวิชาการเลขานุการ', 0],
+          ['FOOD', 'แผนกวิชาอาหารและโภชนาการ', 0],
+          ['CLOTH', 'แผนกวิชาแฟชั่นและสิ่งทอ', 0],
+          ['ART', 'แผนกวิชาวิจิตรศิลป์และการออกแบบ', 0],
+          ['GEN', 'แผนกวิชาสามัญสัมพันธ์ (วิชาพื้นฐาน)', 1],
+          ['LANG', 'แผนกวิชาภาษาต่างประเทศ (สอนช่วย)', 1]
+        ];
       }
 
-      // Ensure standard departments
-      const standardDepts = [
-        ['IT', 'แผนกวิชาเทคโนโลยีสารสนเทศ', 0],
-        ['AUTO', 'แผนกวิชาช่างยนต์', 0],
-        ['ELEC', 'แผนกวิชาช่างไฟฟ้ากำลัง', 0],
-        ['ELECT', 'แผนกวิชาช่างอิเล็กทรอนิกส์', 0],
-        ['ACCT', 'แผนกวิชาการบัญชี', 0],
-        ['MKT', 'แผนกวิชาการตลาด', 0],
-        ['HOTEL', 'แผนกวิชาการโรงแรมและการท่องเที่ยว', 0],
-        ['GEN', 'แผนกวิชาสามัญสัมพันธ์ (วิชาพื้นฐาน)', 1],
-        ['LANG', 'แผนกวิชาภาษาต่างประเทศ (สอนช่วย)', 1]
-      ];
-
-      for (const [code, name, isService] of standardDepts) {
+      for (const [code, name, isService] of deptList) {
         await conn.query(
           'INSERT IGNORE INTO departments (code, name, is_service_department) VALUES (?, ?, ?)',
           [code, name, isService]
         );
       }
 
-      // Check if class groups exist, if 0 seed basic groups
+      // Check if class groups exist, if 0 seed sample groups
       const [groupsCount] = await conn.query<RowDataPacket[]>('SELECT COUNT(*) as c FROM class_groups');
       if (groupsCount[0].c === 0) {
-        const [itDept] = await conn.query<RowDataPacket[]>('SELECT id FROM departments WHERE code = "IT" LIMIT 1');
-        const [autoDept] = await conn.query<RowDataPacket[]>('SELECT id FROM departments WHERE code = "AUTO" LIMIT 1');
         const [vocLevel] = await conn.query<RowDataPacket[]>('SELECT id FROM education_levels WHERE code = "VOC" LIMIT 1');
         const [highVocLevel] = await conn.query<RowDataPacket[]>('SELECT id FROM education_levels WHERE code = "HIGH_VOC" LIMIT 1');
 
-        if (itDept.length > 0 && vocLevel.length > 0) {
-          await conn.query(
-            'INSERT INTO class_groups (department_id, education_level_id, group_name) VALUES (?, ?, "662020401 (ปวช.1 เทคโนโลยีสารสนเทศ)")',
-            [itDept[0].id, vocLevel[0].id]
-          );
+        const [depts] = await conn.query<RowDataPacket[]>('SELECT id, code, name FROM departments WHERE is_service_department = 0 LIMIT 4');
+        for (const dept of depts) {
+          if (vocLevel.length > 0) {
+            await conn.query(
+              'INSERT INTO class_groups (department_id, education_level_id, group_name) VALUES (?, ?, ?)',
+              [dept.id, vocLevel[0].id, `6620${dept.id}01 (ปวช.1 ${dept.name.replace('แผนกวิชา', '')})`]
+            );
+          }
+          if (highVocLevel.length > 0) {
+            await conn.query(
+              'INSERT INTO class_groups (department_id, education_level_id, group_name) VALUES (?, ?, ?)',
+              [dept.id, highVocLevel[0].id, `6630${dept.id}01 (ปวส.1 ${dept.name.replace('แผนกวิชา', '')})`]
+            );
+          }
         }
-        if (itDept.length > 0 && highVocLevel.length > 0) {
+      }
+    }
+
+    // 5. Seed Demo Allocations if requested
+    if (seed_demo_allocations) {
+      const [groups] = await conn.query<RowDataPacket[]>('SELECT id, department_id FROM class_groups LIMIT 3');
+      const [serviceDept] = await conn.query<RowDataPacket[]>('SELECT id FROM departments WHERE is_service_department = 1 LIMIT 1');
+
+      if (groups.length > 0) {
+        const firstGroup = groups[0];
+        const [allocRes] = await conn.query<any>(
+          `INSERT INTO budget_allocations (academic_term_id, class_group_id, student_count, total_practice_hours, rate_per_head, created_by)
+           VALUES (?, ?, 25, 18, 350.00, ?)`,
+          [termId, firstGroup.id, settings.default_operator || 'เจ้าหน้าที่แผนงาน']
+        );
+
+        if (serviceDept.length > 0) {
           await conn.query(
-            'INSERT INTO class_groups (department_id, education_level_id, group_name) VALUES (?, ?, "663020401 (ปวส.1 เทคโนโลยีสารสนเทศ)")',
-            [itDept[0].id, highVocLevel[0].id]
-          );
-        }
-        if (autoDept.length > 0 && vocLevel.length > 0) {
-          await conn.query(
-            'INSERT INTO class_groups (department_id, education_level_id, group_name) VALUES (?, ?, "662010101 (ปวช.1 ช่างยนต์)")',
-            [autoDept[0].id, vocLevel[0].id]
+            `INSERT INTO inter_department_shares (allocation_id, source_department_id, target_department_id, share_amount, remark)
+             VALUES (?, ?, ?, 486.11, "วิชาสามัญสัมพันธ์พื้นฐาน")`,
+            [allocRes.insertId, firstGroup.department_id, serviceDept[0].id]
           );
         }
       }
