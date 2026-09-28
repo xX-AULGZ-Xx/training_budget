@@ -466,9 +466,9 @@ router.post('/startup', async (req: Request, res: Response): Promise<void> => {
 
     // 3. Seed Education Levels
     const levels = [
-      ['VOC', 'ปวช.'],
-      ['HIGH_VOC', 'ปวส.'],
-      ['PRISON', 'ปวช.เรือนจำ']
+      ['VOCATIONAL', 'ระดับ ปวช.'],
+      ['HIGH_VOCATIONAL', 'ระดับ ปวส.'],
+      ['SPECIAL_PRISON', 'โครงการพิเศษเรือนจำ']
     ];
     for (const [code, name] of levels) {
       await conn.query(
@@ -529,8 +529,8 @@ router.post('/startup', async (req: Request, res: Response): Promise<void> => {
       // Check if class groups exist, if 0 seed sample groups
       const [groupsCount] = await conn.query<RowDataPacket[]>('SELECT COUNT(*) as c FROM class_groups');
       if (groupsCount[0].c === 0) {
-        const [vocLevel] = await conn.query<RowDataPacket[]>('SELECT id FROM education_levels WHERE code = "VOC" LIMIT 1');
-        const [highVocLevel] = await conn.query<RowDataPacket[]>('SELECT id FROM education_levels WHERE code = "HIGH_VOC" LIMIT 1');
+        const [vocLevel] = await conn.query<RowDataPacket[]>('SELECT id FROM education_levels WHERE code = "VOCATIONAL" LIMIT 1');
+        const [highVocLevel] = await conn.query<RowDataPacket[]>('SELECT id FROM education_levels WHERE code = "HIGH_VOCATIONAL" LIMIT 1');
 
         const [depts] = await conn.query<RowDataPacket[]>('SELECT id, code, name FROM departments WHERE is_service_department = 0 LIMIT 4');
         for (const dept of depts) {
