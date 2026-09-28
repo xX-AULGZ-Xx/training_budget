@@ -194,6 +194,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       }
       showToast('บันทึกการตั้งค่าระบบเรียบร้อยแล้ว');
       loadSettings();
+      onRefreshData();
     } catch (err: any) {
       showErrorAlert('เกิดข้อผิดพลาด', err.message);
     } finally {
@@ -753,7 +754,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    รหัสย่อสถานศึกษา <span className="text-red-500">*</span>
+                    รหัสย่อ/ชื่อย่อสถานศึกษา <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -761,9 +762,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     onChange={(e) =>
                       setSystemSettings({ ...systemSettings, college_code: e.target.value })
                     }
+                    placeholder="เช่น CRIC, CVC หรือ วก.เชียงราย"
                     required
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none uppercase font-mono"
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-semibold text-slate-800"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    รหัสย่อนี้จะนำไปแสดงเป็นป้ายกำกับ (Badge) บนแถบเมนู Header ด้านบนของระบบ
+                  </p>
                 </div>
 
                 <div>

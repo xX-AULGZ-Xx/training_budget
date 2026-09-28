@@ -15,7 +15,8 @@ import {
   DepartmentSummary,
   LevelSummary,
   SummaryKPIs,
-  AuditLog
+  AuditLog,
+  SystemSettings
 } from './types';
 import {
   showConfirmDialog,
@@ -47,17 +48,26 @@ export function App() {
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [currentView, setCurrentView] = useState<'budget' | 'settings' | 'startup'>('budget');
   const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
-  // 1. Initial Load: Fetch Terms & Departments & Groups & Education Levels
+  // Sync browser document title when college name changes
+  useEffect(() => {
+    if (systemSettings?.college_name) {
+      document.title = `ระบบการคิดคำนวณและจัดสรรงบประมาณค่าวัสดุฝึก - ${systemSettings.college_name}`;
+    }
+  }, [systemSettings]);
+
+  // 1. Initial Load: Fetch Terms & Departments & Groups & Education Levels & Settings
   const initData = async () => {
     try {
       setLoading(true);
-      const [termsRes, deptsRes, groupsRes, levelsRes] = await Promise.all([
+      const [termsRes, deptsRes, groupsRes, levelsRes, settingsRes] = await Promise.all([
         fetch('/api/v1/terms').then((r) => r.json()),
         fetch('/api/v1/departments').then((r) => r.json()),
         fetch('/api/v1/groups').then((r) => r.json()),
-        fetch('/api/v1/departments/levels').then((r) => r.json())
+        fetch('/api/v1/departments/levels').then((r) => r.json()),
+        fetch('/api/v1/settings').then((r) => r.json())
       ]);
 
       if (termsRes.success && termsRes.data.length > 0) {
@@ -76,6 +86,10 @@ export function App() {
 
       if (levelsRes.success) {
         setEducationLevels(levelsRes.data);
+      }
+
+      if (settingsRes && settingsRes.success) {
+        setSystemSettings(settingsRes.data);
       }
     } catch (err) {
       console.error('Error fetching initial data:', err);
@@ -213,6 +227,7 @@ export function App() {
         onDownloadPdf={handleDownloadPdf}
         onRefresh={loadTermData}
         loading={loading}
+        systemSettings={systemSettings}
       />
 
       {/* Main Content Area */}

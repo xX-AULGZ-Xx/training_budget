@@ -1,5 +1,5 @@
 import React from 'react';
-import { AcademicTerm } from '../types';
+import { AcademicTerm, SystemSettings } from '../types';
 import {
   School,
   Calendar,
@@ -24,6 +24,7 @@ interface HeaderProps {
   onDownloadPdf: () => void;
   onRefresh: () => void;
   loading: boolean;
+  systemSettings?: SystemSettings | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -36,7 +37,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuditLogs,
   onDownloadPdf,
   onRefresh,
-  loading
+  loading,
+  systemSettings
 }) => {
   const isReadOnly = selectedTerm?.status !== 'OPEN';
 
@@ -49,11 +51,20 @@ export const Header: React.FC<HeaderProps> = ({
             <School className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50">
-                วอศ.เชียงราย
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span 
+                className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50"
+                title={`รหัสย่อ: ${systemSettings?.college_code || 'CRIC'}`}
+              >
+                {systemSettings?.college_code || 'CRIC'}
               </span>
-              <span className="text-[11px] text-slate-400 font-medium">งานวางแผนและงบประมาณ</span>
+              <span className="text-[11px] text-slate-700 font-semibold truncate max-w-[240px] sm:max-w-none">
+                {systemSettings?.college_name || 'วิทยาลัยการอาชีพเชียงราย'}
+              </span>
+              <span className="text-[11px] text-slate-300 hidden sm:inline">•</span>
+              <span className="text-[11px] text-slate-400 font-normal hidden sm:inline">
+                {systemSettings?.department_name || 'งานวางแผนและงบประมาณ'}
+              </span>
             </div>
             <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
               ระบบการคิดคำนวณและจัดสรรงบประมาณค่าวัสดุฝึก
