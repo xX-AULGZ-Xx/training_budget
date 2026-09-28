@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { AcademicTerm, Department, ClassGroup, EducationLevel, SystemSettings, DatabaseHealth } from '../types';
 import {
+  showSuccessToast,
+  showErrorAlert,
+  showDangerConfirmDialog
+} from '../utils/alerts';
+import {
   Calendar,
   Building2,
   Users,
@@ -10,7 +15,6 @@ import {
   X,
   Save,
   AlertCircle,
-  CheckCircle2,
   Search,
   Lock,
   Unlock,
@@ -104,12 +108,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [groupSubmitting, setGroupSubmitting] = useState<boolean>(false);
   const [groupError, setGroupError] = useState<string | null>(null);
 
-  // Toast message
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
   const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+    showSuccessToast(msg);
   };
 
   // Load System Settings
@@ -195,7 +195,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       showToast('บันทึกการตั้งค่าระบบเรียบร้อยแล้ว');
       loadSettings();
     } catch (err: any) {
-      alert(err.message);
+      showErrorAlert('เกิดข้อผิดพลาด', err.message);
     } finally {
       setSettingsSaving(false);
     }
@@ -207,12 +207,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   const handleResetDemoData = async () => {
-    if (
-      !window.confirm(
-        'คุณแน่ใจว่าต้องการโหลดข้อมูลตัวอย่างเริ่มต้น? ระบบจะรีเซ็ตข้อมูลจัดสรรทั้งหมดและเติมตัวอย่างใหม่สำหรับการทดสอบ'
-      )
-    )
-      return;
+    const confirmed = await showDangerConfirmDialog(
+      'ยืนยันโหลดข้อมูลตัวอย่างเริ่มต้น?',
+      'ระบบจะรีเซ็ตข้อมูลจัดสรรทั้งหมดและเติมตัวอย่างใหม่สำหรับการทดสอบการคำนวณงบประมาณ',
+      'ใช่, โหลดข้อมูลตัวอย่าง',
+      'ยกเลิก'
+    );
+    if (!confirmed) return;
 
     try {
       const res = await fetch('/api/v1/settings/reset-demo', { method: 'POST' });
@@ -222,17 +223,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       onRefreshData();
       loadSettings();
     } catch (err: any) {
-      alert(err.message);
+      showErrorAlert('เกิดข้อผิดพลาด', err.message);
     }
   };
 
   const handleClearAllocations = async () => {
-    if (
-      !window.confirm(
-        'คำเตือน: คุณต้องการล้างรายการจัดสรรงบประมาณทั้งหมดใช่หรือไม่? (โครงสร้างแผนกวิชาและกลุ่มเรียนจะยังคงอยู่)'
-      )
-    )
-      return;
+    const confirmed = await showDangerConfirmDialog(
+      'คำเตือน: ยืนยันล้างรายการจัดสรรทั้งหมด?',
+      'ข้อมูลรายการจัดสรรงบประมาณและบันทึกประวัติทั้งหมดจะถูกลบเพื่อเตรียมความพร้อมสำหรับเริ่มรอบปีงบประมาณใหม่ (โครงสร้างแผนกวิชาและกลุ่มเรียนจะยังคงอยู่ครบถ้วน)',
+      'ใช่, ล้างข้อมูลจัดสรร',
+      'ยกเลิก'
+    );
+    if (!confirmed) return;
 
     try {
       const res = await fetch('/api/v1/settings/clear-allocations', { method: 'POST' });
@@ -242,7 +244,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       onRefreshData();
       loadSettings();
     } catch (err: any) {
-      alert(err.message);
+      showErrorAlert('เกิดข้อผิดพลาด', err.message);
     }
   };
 
@@ -345,7 +347,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   const handleDeleteTerm = async (term: AcademicTerm) => {
-    if (!window.confirm(`คุณแน่ใจว่าต้องการลบ ภาคเรียนที่ ${term.semester}/${term.academic_year} หรือไม่?`)) return;
+    const confirmed = await showDangerConfirmDialog(
+      'ยืนยันการลบภาคเรียน?',
+      `คุณแน่ใจว่าต้องการลบ ภาคเรียนที่ ${term.semester}/${term.academic_year} ใช่หรือไม่? รายการที่เกี่ยวข้องอาจได้รับผลกระทบ`,
+      'ใช่, ยืนยันการลบ',
+      'ยกเลิก'
+    );
+    if (!confirmed) return;
 
     try {
       const res = await fetch(`/api/v1/terms/${term.id}`, { method: 'DELETE' });
@@ -357,7 +365,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       onRefreshData();
       loadSettings();
     } catch (err: any) {
-      alert(err.message);
+      showErrorAlert('ลบไม่สำเร็จ', err.message);
     }
   };
 
@@ -421,7 +429,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   const handleDeleteDepartment = async (dept: Department) => {
-    if (!window.confirm(`คุณแน่ใจว่าต้องการลบแผนก "${dept.name}" (${dept.code})?`)) return;
+    const confirmed = await showDangerConfirmDialog(
+      'ยืนยันการลบแผนกวิชา?',
+      `คุณแน่ใจว่าต้องการลบแผนก "${dept.name}" (${dept.code}) ใช่หรือไม่? กลุ่มเรียนที่สังกัดแผนกนี้จะได้รับผลกระทบ`,
+      'ใช่, ยืนยันการลบ',
+      'ยกเลิก'
+    );
+    if (!confirmed) return;
 
     try {
       const res = await fetch(`/api/v1/departments/${dept.id}`, { method: 'DELETE' });
@@ -433,7 +447,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       onRefreshData();
       loadSettings();
     } catch (err: any) {
-      alert(err.message);
+      showErrorAlert('ลบไม่สำเร็จ', err.message);
     }
   };
 
@@ -497,7 +511,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   const handleDeleteGroup = async (group: ClassGroup) => {
-    if (!window.confirm(`คุณแน่ใจว่าต้องการลบกลุ่มเรียน "${group.group_name}"?`)) return;
+    const confirmed = await showDangerConfirmDialog(
+      'ยืนยันการลบกลุ่มเรียน?',
+      `คุณแน่ใจว่าต้องการลบกลุ่มเรียน "${group.group_name}" ใช่หรือไม่?`,
+      'ใช่, ยืนยันการลบ',
+      'ยกเลิก'
+    );
+    if (!confirmed) return;
 
     try {
       const res = await fetch(`/api/v1/groups/${group.id}`, { method: 'DELETE' });
@@ -509,7 +529,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       onRefreshData();
       loadSettings();
     } catch (err: any) {
-      alert(err.message);
+      showErrorAlert('ลบไม่สำเร็จ', err.message);
     }
   };
 
@@ -539,14 +559,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-2 border border-slate-700 animate-fade-in text-xs font-medium">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       {/* Page Header & Navigation Tabs */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>

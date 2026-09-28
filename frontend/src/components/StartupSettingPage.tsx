@@ -29,6 +29,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { SystemSettings, DatabaseHealth } from '../types';
+import { showErrorAlert } from '../utils/alerts';
 
 interface StartupSettingPageProps {
   onComplete: () => void;
@@ -245,7 +246,7 @@ docker compose ps`;
       await new Promise((r) => setTimeout(r, 500));
       setIsSuccess(true);
     } catch (err: any) {
-      alert(err.message);
+      showErrorAlert('เริ่มต้นระบบไม่สำเร็จ', err.message);
     } finally {
       setSubmitting(false);
       setSubmitProgress('');

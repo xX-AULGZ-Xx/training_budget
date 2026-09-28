@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Allocation, Department, ShareItem } from '../types';
 import { X, Save, Plus, Trash2, AlertCircle, CheckCircle2, Edit3 } from 'lucide-react';
+import { showSuccessToast, showErrorAlert } from '../utils/alerts';
 
 interface EditAllocationModalProps {
   isOpen: boolean;
@@ -108,13 +109,12 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
         throw new Error(data.message || 'ปรับปรุงข้อมูลล้มเหลว');
       }
 
-      setSuccessMessage('ปรับปรุงข้อมูลจัดสรรสำเร็จ');
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-      }, 700);
+      showSuccessToast('ปรับปรุงข้อมูลจัดสรรสำเร็จ');
+      onSuccess();
+      onClose();
     } catch (err: any) {
       setErrorMessage(err.message);
+      showErrorAlert('บันทึกไม่สำเร็จ', err.message);
     } finally {
       setSubmitting(false);
     }

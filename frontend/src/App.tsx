@@ -17,6 +17,12 @@ import {
   SummaryKPIs,
   AuditLog
 } from './types';
+import {
+  showConfirmDialog,
+  showDangerConfirmDialog,
+  showSuccessToast,
+  showErrorAlert
+} from './utils/alerts';
 
 export function App() {
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
@@ -125,12 +131,18 @@ export function App() {
   const handleToggleTermStatus = async () => {
     if (!selectedTerm) return;
     const newStatus = selectedTerm.status === 'OPEN' ? 'CLOSED' : 'OPEN';
-    const confirmMsg =
-      newStatus === 'CLOSED'
-        ? 'คุณต้องการปิดงวดปีการศึกษานี้ใช่หรือไม่? (ระบบจะล็อกไม่ให้บันทึกหรือแก้ไขเพิ่มเติม)'
-        : 'คุณต้องการเปิดงวดปีการศึกษานี้อีกครั้งใช่หรือไม่?';
+    const isClosing = newStatus === 'CLOSED';
 
-    if (!window.confirm(confirmMsg)) return;
+    const confirmed = await showConfirmDialog(
+      isClosing ? 'ยืนยันการปิดงวดปีการศึกษา?' : 'ยืนยันการเปิดงวดปีการศึกษา?',
+      isClosing
+        ? `คุณต้องการปิดงวดภาคเรียนที่ ${selectedTerm.semester}/${selectedTerm.academic_year} ใช่หรือไม่? (ระบบจะล็อกไม่ให้บันทึกหรือแก้ไขงบประมาณเพิ่มเติม)`
+        : `คุณต้องการเปิดงวดภาคเรียนที่ ${selectedTerm.semester}/${selectedTerm.academic_year} อีกครั้งเพื่อแก้ไขรายการใช่หรือไม่?`,
+      isClosing ? 'ยืนยันปิดงวด' : 'ยืนยันเปิดงวด',
+      'ยกเลิก'
+    );
+
+    if (!confirmed) return;
 
     try {
       const res = await fetch(`/api/v1/terms/${selectedTerm.id}/status`, {
@@ -142,25 +154,41 @@ export function App() {
       if (data.success) {
         setSelectedTerm({ ...selectedTerm, status: newStatus });
         setTerms(terms.map((t) => (t.id === selectedTerm.id ? { ...t, status: newStatus } : t)));
+        showSuccessToast(
+          isClosing
+            ? `ปิดงวดภาคเรียนที่ ${selectedTerm.semester}/${selectedTerm.academic_year} เรียบร้อยแล้ว`
+            : `เปิดงวดภาคเรียนที่ ${selectedTerm.semester}/${selectedTerm.academic_year} สำเร็จ`
+        );
+      } else {
+        showErrorAlert('เกิดข้อผิดพลาด', data.message);
       }
-    } catch (err) {
-      console.error('Error toggling term status:', err);
+    } catch (err: any) {
+      showErrorAlert('เกิดข้อผิดพลาด', err.message);
     }
   };
 
   // Delete Allocation
   const handleDeleteAllocation = async (id: number) => {
-    if (!window.confirm('คุณแน่ใจว่าต้องการลบรายการจัดสรรนี้?')) return;
+    const confirmed = await showDangerConfirmDialog(
+      'คุณแน่ใจว่าต้องการลบรายการจัดสรรนี้?',
+      'รายการจัดสรรงบประมาณและข้อมูลการโอนสอนช่วยทั้งหมดที่เกี่ยวข้องจะถูกลบออกจากระบบอย่างถาวร',
+      'ใช่, ยืนยันการลบ',
+      'ยกเลิก'
+    );
+
+    if (!confirmed) return;
+
     try {
       const res = await fetch(`/api/v1/allocations/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
+        showSuccessToast('ลบรายการจัดสรรงบประมาณเรียบร้อยแล้ว');
         loadTermData();
       } else {
-        alert(data.message || 'ลบไม่สำเร็จ');
+        showErrorAlert('ลบไม่สำเร็จ', data.message || 'เกิดข้อผิดพลาดในการลบรายการ');
       }
     } catch (err: any) {
-      alert(err.message);
+      showErrorAlert('เกิดข้อผิดพลาด', err.message);
     }
   };
 

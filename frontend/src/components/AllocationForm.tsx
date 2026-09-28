@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Department, ClassGroup, EducationLevel, ShareItem, Allocation } from '../types';
 import { Plus, Trash2, Calculator, AlertCircle, Save, CheckCircle2, RotateCcw } from 'lucide-react';
+import { showSuccessToast, showErrorAlert } from '../utils/alerts';
 
 interface AllocationFormProps {
   termId: number;
@@ -206,12 +207,14 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
         throw new Error(data.message || 'บันทึกข้อมูลล้มเหลว');
       }
 
+      showSuccessToast('บันทึกข้อมูลและคำนวณงบประมาณสำเร็จ');
       setSuccessMessage('บันทึกข้อมูลและคำนวณงบประมาณสำเร็จ');
       onSuccess();
       handleResetForm();
       setTimeout(() => setSuccessMessage(null), 3500);
     } catch (err: any) {
       setErrorMessage(err.message);
+      showErrorAlert('บันทึกไม่สำเร็จ', err.message);
     } finally {
       setSubmitting(false);
     }
