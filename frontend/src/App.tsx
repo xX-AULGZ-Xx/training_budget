@@ -6,6 +6,7 @@ import { AuditLogModal } from './components/AuditLogModal';
 import { EditAllocationModal } from './components/EditAllocationModal';
 import { SettingsPage } from './components/SettingsPage';
 import { StartupSettingPage } from './components/StartupSettingPage';
+import { Calculator, LayoutDashboard, Eye } from 'lucide-react';
 import {
   AcademicTerm,
   Department,
@@ -47,6 +48,7 @@ export function App() {
   const [editingAllocation, setEditingAllocation] = useState<Allocation | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [currentView, setCurrentView] = useState<'budget' | 'settings' | 'startup'>('budget');
+  const [mobileSubView, setMobileSubView] = useState<'all' | 'form' | 'dashboard'>('all');
   const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -231,7 +233,7 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-5">
+      <main className="flex-1 w-full max-w-[1720px] mx-auto px-2.5 sm:px-6 lg:px-8 py-3 sm:py-5">
         {currentView === 'startup' ? (
           <StartupSettingPage
             onComplete={() => {
@@ -254,39 +256,91 @@ export function App() {
             }}
           />
         ) : (
-          <div className="flex flex-col 2xl:flex-row gap-5 items-start">
-            {/* Left Column: Input Form Panel */}
-            <div className="w-full 2xl:w-[380px] shrink-0 sticky top-18">
-              {selectedTerm && (
-                <AllocationForm
-                  termId={selectedTerm.id}
-                  isReadOnly={selectedTerm.status !== 'OPEN'}
-                  departments={departments}
-                  classGroups={classGroups}
-                  educationLevels={educationLevels}
-                  allocations={allocations}
-                  onSuccess={loadTermData}
-                />
-              )}
+          <div>
+            {/* Mobile Sub-view Switcher Bar (visible only on mobile/tablet < 2xl) */}
+            <div className="2xl:hidden w-full mb-3 bg-white p-1 rounded-xl border border-slate-200/90 shadow-2xs">
+              <div className="grid grid-cols-3 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setMobileSubView('form')}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
+                    mobileSubView === 'form'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Calculator className="w-3.5 h-3.5" />
+                  <span>บันทึกงบ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileSubView('dashboard')}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
+                    mobileSubView === 'dashboard'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>ตารางสรุป ({allocations.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileSubView('all')}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
+                    mobileSubView === 'all'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>ทั้งหมด</span>
+                </button>
+              </div>
             </div>
 
-            {/* Right Column: Summary Dashboard */}
-            <div className="flex-1 min-w-0 w-full">
-              <SummaryDashboard
-                kpis={kpis}
-                departments={departmentSummaries}
-                levels={levelSummaries}
-                allDepartments={departments}
-                allocations={allocations}
-                selectedDepartmentId={selectedDepartmentId}
-                onSelectDepartmentId={setSelectedDepartmentId}
-                onEditAllocation={(alloc) => {
-                  setEditingAllocation(alloc);
-                  setIsEditModalOpen(true);
-                }}
-                onDeleteAllocation={handleDeleteAllocation}
-                isReadOnly={selectedTerm?.status !== 'OPEN'}
-              />
+            <div className="flex flex-col 2xl:flex-row gap-4 sm:gap-5 items-start">
+              {/* Left Column: Input Form Panel */}
+              <div
+                className={`w-full 2xl:w-[380px] shrink-0 2xl:sticky 2xl:top-18 ${
+                  mobileSubView === 'dashboard' ? 'hidden 2xl:block' : 'block'
+                }`}
+              >
+                {selectedTerm && (
+                  <AllocationForm
+                    termId={selectedTerm.id}
+                    isReadOnly={selectedTerm.status !== 'OPEN'}
+                    departments={departments}
+                    classGroups={classGroups}
+                    educationLevels={educationLevels}
+                    allocations={allocations}
+                    onSuccess={loadTermData}
+                  />
+                )}
+              </div>
+
+              {/* Right Column: Summary Dashboard */}
+              <div
+                className={`flex-1 min-w-0 w-full ${
+                  mobileSubView === 'form' ? 'hidden 2xl:block' : 'block'
+                }`}
+              >
+                <SummaryDashboard
+                  kpis={kpis}
+                  departments={departmentSummaries}
+                  levels={levelSummaries}
+                  allDepartments={departments}
+                  allocations={allocations}
+                  selectedDepartmentId={selectedDepartmentId}
+                  onSelectDepartmentId={setSelectedDepartmentId}
+                  onEditAllocation={(alloc) => {
+                    setEditingAllocation(alloc);
+                    setIsEditModalOpen(true);
+                  }}
+                  onDeleteAllocation={handleDeleteAllocation}
+                  isReadOnly={selectedTerm?.status !== 'OPEN'}
+                />
+              </div>
             </div>
           </div>
         )}

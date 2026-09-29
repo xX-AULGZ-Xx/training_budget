@@ -18,29 +18,29 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-2.5 sm:p-4">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center space-x-2.5">
-            <Clock className="w-5 h-5 text-blue-600" />
-            <div>
-              <h3 className="text-base font-bold text-slate-800">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="flex items-center space-x-2 sm:space-x-2.5">
+            <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-bold text-slate-800 truncate">
                 ประวัติการแก้ไขและ Audit Snapshot
               </h3>
-              <p className="text-xs text-slate-500">สำหรับ {termTitle}</p>
+              <p className="text-[11px] sm:text-xs text-slate-500 truncate">สำหรับ {termTitle}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
+            className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-3.5 flex-1">
+        <div className="p-3.5 sm:p-6 overflow-y-auto space-y-2.5 sm:space-y-3.5 flex-1">
           {logs.length === 0 ? (
             <div className="text-center py-12 text-slate-400 text-sm">
               ยังไม่มีประวัติการบันทึกหรือปรับปรุงข้อมูลในงวดนี้

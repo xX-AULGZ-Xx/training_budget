@@ -229,59 +229,59 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
     shares.length > 0;
 
   return (
-    <div className="bg-white rounded-2xl shadow-2xs border border-slate-200/90 overflow-hidden flex flex-col h-full">
+    <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xs border border-slate-200/90 overflow-hidden flex flex-col h-full">
       {/* Panel Header */}
-      <div className="bg-slate-50/70 border-b border-slate-200/80 px-5 py-3.5 flex items-center justify-between">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-            <Calculator className="w-4 h-4" />
+      <div className="bg-slate-50/70 border-b border-slate-200/80 px-3.5 sm:px-5 py-2.5 sm:py-3.5 flex items-center justify-between">
+        <div className="flex items-center space-x-2 sm:space-x-2.5">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <Calculator className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-900">
+            <h2 className="text-xs sm:text-sm font-bold text-slate-900">
               แบบฟอร์มจัดสรรงบประมาณ
             </h2>
-            <p className="text-[11px] text-slate-500">บันทึกงบตั้งต้นและปันส่วนสอนช่วย</p>
+            <p className="text-[10px] sm:text-[11px] text-slate-500">บันทึกงบตั้งต้นและปันส่วนสอนช่วย</p>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1.5 sm:space-x-2">
           {hasFormContent && !isReadOnly && (
             <button
               type="button"
               onClick={handleResetForm}
-              className="text-[11px] text-slate-500 hover:text-rose-600 flex items-center space-x-1 px-2 py-0.5 rounded border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors cursor-pointer"
+              className="text-[10px] sm:text-[11px] text-slate-500 hover:text-rose-600 flex items-center space-x-1 px-2 py-0.5 rounded border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-colors cursor-pointer"
               title="ล้างค่าทั้งหมดในฟอร์ม"
             >
               <RotateCcw className="w-3 h-3" />
               <span>ล้างค่า</span>
             </button>
           )}
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/60 uppercase tracking-wider">
+          <span className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/60 uppercase tracking-wider">
             Reactive
           </span>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-5 space-y-4 flex-1 flex flex-col justify-between">
-        <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="p-3.5 sm:p-5 space-y-3.5 sm:space-y-4 flex-1 flex flex-col justify-between">
+        <div className="space-y-3 sm:space-y-4">
           {/* Notifications */}
           {errorMessage && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start space-x-2 text-xs text-red-700">
+            <div className="p-2.5 sm:p-3 bg-red-50 border border-red-200 rounded-xl flex items-start space-x-2 text-xs text-red-700">
               <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
               <span>{errorMessage}</span>
             </div>
           )}
           {successMessage && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start space-x-2 text-xs text-emerald-700">
+            <div className="p-2.5 sm:p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start space-x-2 text-xs text-emerald-700">
               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
               <span>{successMessage}</span>
             </div>
           )}
 
           {/* 1. Cascaded Department & Class Group Selection (Matching user image request) */}
-          <div className="space-y-3">
+          <div className="space-y-2.5 sm:space-y-3">
             {/* 1.1 แผนกวิชา */}
             <div>
-              <label className="block text-xs font-bold text-indigo-600 mb-1.5">
+              <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
                 แผนกวิชา
               </label>
               <select
@@ -290,7 +290,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                   handleDepartmentChange(e.target.value === '' ? '' : Number(e.target.value))
                 }
                 disabled={isReadOnly}
-                className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors"
+                className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors cursor-pointer"
               >
                 <option value="">--- เลือกแผนกวิชา ---</option>
                 {departments
@@ -305,10 +305,10 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
 
             {/* 1.2 ชื่อกลุ่มเรียน */}
             <div>
-              <label className="block text-xs font-bold text-indigo-600 mb-1.5">
+              <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
                 ชื่อกลุ่มเรียน
               </label>
-              <div className="grid grid-cols-[96px_1fr] sm:grid-cols-[105px_1fr] gap-2">
+              <div className="grid grid-cols-[85px_1fr] sm:grid-cols-[105px_1fr] gap-1.5 sm:gap-2">
                 {/* เลือกระดับ (ปวช./ปวส./เรือนจำ/เลือก) */}
                 <select
                   value={selectedLevelId}
@@ -316,9 +316,9 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                     handleLevelChange(e.target.value === 'all' ? 'all' : Number(e.target.value))
                   }
                   disabled={isReadOnly}
-                  className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors cursor-pointer"
+                  className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors cursor-pointer"
                 >
-                  <option value="all">เลือก</option>
+                  <option value="all">ระดับ</option>
                   {educationLevels.map((lvl) => (
                     <option key={lvl.id} value={lvl.id}>
                       {lvl.name}
@@ -333,9 +333,9 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                     handleGroupChange(e.target.value === '' ? '' : Number(e.target.value))
                   }
                   disabled={isReadOnly}
-                  className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors cursor-pointer"
+                  className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors cursor-pointer"
                 >
-                  <option value="">เลือกกลุ่ม</option>
+                  <option value="">-- เลือกกลุ่มเรียน --</option>
                   {availableGroups.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.group_name} {!selectedDeptId ? `(${g.department_name})` : ''}
@@ -345,7 +345,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
               </div>
 
               {selectedGroup && (
-                <p className="mt-1.5 text-[11px] text-slate-500">
+                <p className="mt-1 text-[10px] sm:text-[11px] text-slate-500">
                   สังกัด: <span className="font-semibold text-slate-800">{selectedGroup.department_name}</span> • ระดับ: <span className="font-semibold text-indigo-700">{selectedGroup.education_level_name}</span>
                 </p>
               )}
@@ -353,9 +353,9 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           </div>
 
           {/* 2. Numeric Inputs (Grid) */}
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
                 จำนวน นร. (คน) <span className="text-red-500">*</span>
               </label>
               <input
@@ -365,11 +365,11 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                 value={studentCount}
                 onChange={(e) => setStudentCount(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
                 disabled={isReadOnly}
-                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2 text-right font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
+                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-1.5 sm:p-2 text-right font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
                 ชม.ฝึกปฏิบัติ
               </label>
               <input
@@ -380,12 +380,12 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                 value={practiceHours}
                 onChange={(e) => setPracticeHours(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                 disabled={isReadOnly}
-                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
+                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-1.5 sm:p-2 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                อัตราต่อหัว (บาท) <span className="text-red-500">*</span>
+              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
+                อัตรา/หัว (บาท) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -395,7 +395,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                 value={ratePerHead}
                 onChange={(e) => setRatePerHead(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                 disabled={isReadOnly}
-                className="w-full bg-slate-50 border border-slate-300 text-blue-700 text-xs rounded-xl p-2 text-right font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
+                className="w-full bg-slate-50 border border-slate-300 text-blue-700 text-xs rounded-xl p-1.5 sm:p-2 text-right font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
               />
             </div>
           </div>
@@ -487,7 +487,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                         ))}
                       </select>
 
-                      <div className="w-28 relative">
+                      <div className="w-24 sm:w-28 relative shrink-0">
                         <input
                           type="number"
                           step="0.01"
@@ -510,7 +510,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveShare(index)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 rounded transition-colors"
+                          className="p-1 sm:p-1.5 text-slate-400 hover:text-red-600 rounded transition-colors cursor-pointer shrink-0"
                           title="ลบรายการปันส่วน"
                         >
                           <Trash2 className="w-4 h-4" />

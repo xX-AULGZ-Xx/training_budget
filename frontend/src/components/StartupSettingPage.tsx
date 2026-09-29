@@ -262,17 +262,17 @@ docker compose ps`;
   const simRemainingBudget = simTotalBudget - simShareAmount;
 
   return (
-    <div className="max-w-5xl mx-auto py-3 sm:py-6 px-3 sm:px-4">
+    <div className="max-w-5xl mx-auto py-2 sm:py-6 px-1.5 sm:px-4">
       {/* Outer Card */}
-      <div className="bg-white rounded-3xl shadow-xl border border-slate-200/90 overflow-hidden transition-all">
+      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-200/90 overflow-hidden transition-all">
         {/* Top Header Banner */}
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white p-6 sm:p-8 relative overflow-hidden">
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white p-4 sm:p-8 relative overflow-hidden">
           <div className="absolute right-0 top-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute left-1/3 bottom-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
 
           {/* Top Bar: Badge, DB Status, Cancel Button */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-            <div className="flex items-center space-x-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 relative z-10">
+            <div className="flex items-center space-x-2.5 sm:space-x-3.5">
               <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-inner shrink-0">
                 <Rocket className="w-6 h-6 text-blue-300" />
               </div>
@@ -355,7 +355,7 @@ docker compose ps`;
         </div>
 
         {/* Wizard Content Body */}
-        <div className="p-6 sm:p-8">
+        <div className="p-4 sm:p-8">
           {isSuccess ? (
             /* Success Screen */
             <div className="py-8 text-center space-y-6 animate-fade-in">

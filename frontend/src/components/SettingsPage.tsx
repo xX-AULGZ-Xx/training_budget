@@ -590,61 +590,61 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
 
         {/* Tab Buttons */}
-        <div className="flex flex-wrap items-center bg-slate-100/90 p-1.5 rounded-xl border border-slate-200 shadow-inner gap-1">
+        <div className="flex items-center bg-slate-100/90 p-1 sm:p-1.5 rounded-xl border border-slate-200 shadow-inner gap-1 overflow-x-auto scrollbar-none whitespace-nowrap w-full">
           <button
             onClick={() => setActiveTab('general')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shrink-0 ${
               activeTab === 'general'
                 ? 'bg-white text-blue-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Settings className="w-3.5 h-3.5" />
-            <span>ตั้งค่าทั่วไป (Setup)</span>
+            <Settings className="w-3.5 h-3.5 shrink-0" />
+            <span>ตั้งค่าทั่วไป</span>
           </button>
           <button
             onClick={() => setActiveTab('terms')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shrink-0 ${
               activeTab === 'terms'
                 ? 'bg-white text-blue-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Calendar className="w-3.5 h-3.5" />
-            <span>ภาคเรียน/ปีการศึกษา ({terms.length})</span>
+            <Calendar className="w-3.5 h-3.5 shrink-0" />
+            <span>ปีการศึกษา ({terms.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('departments')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shrink-0 ${
               activeTab === 'departments'
                 ? 'bg-white text-blue-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Building2 className="w-3.5 h-3.5" />
+            <Building2 className="w-3.5 h-3.5 shrink-0" />
             <span>แผนกวิชา ({departments.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('groups')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shrink-0 ${
               activeTab === 'groups'
                 ? 'bg-white text-blue-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Users className="w-3.5 h-3.5" />
+            <Users className="w-3.5 h-3.5 shrink-0" />
             <span>กลุ่มเรียน ({classGroups.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('tools')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shrink-0 ${
               activeTab === 'tools'
                 ? 'bg-white text-blue-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Database className="w-3.5 h-3.5" />
-            <span>การตั้งค่าฐานข้อมูล (Database)</span>
+            <Database className="w-3.5 h-3.5 shrink-0" />
+            <span>ฐานข้อมูล (Database)</span>
           </button>
         </div>
       </div>
