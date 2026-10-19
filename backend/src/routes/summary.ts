@@ -4,14 +4,17 @@ import { RowDataPacket } from 'mysql2';
 
 const router = Router();
 
-// GET /api/v1/summary?term_id={id}&department_id={id|all}
+// GET /api/v1/summary?term_id={id}&department_id={id|all}&calculation_type={type|all}
 router.get('/', async (req: Request, res: Response): Promise<void> => {
-  const { term_id, department_id } = req.query;
+  const { term_id, department_id, calculation_type } = req.query;
 
   if (!term_id) {
     res.status(400).json({ success: false, message: 'term_id is required' });
     return;
   }
+
+  const hasCalcType = calculation_type && calculation_type !== 'all';
+  const calcCondition = hasCalcType ? ' AND ba.calculation_type = ?' : '';
 
   try {
     // 1. Department Summary Query (Reconciliation + Level Breakdown)
@@ -41,13 +44,13 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
            - COALESCE(deduct.total_deducted, 0.00) 
            + COALESCE(trans.total_transferred, 0.00)) AS net_budget,
           (COALESCE(base.base_voc, 0.00)
-           - COALESCE(deduct.deduct_voc, 0.00)
+           - COALESCE(deduct.deduct_voc, 0.00) 
            + COALESCE(trans.trans_voc, 0.00)) AS net_voc,
           (COALESCE(base.base_high_voc, 0.00)
-           - COALESCE(deduct.deduct_high_voc, 0.00)
+           - COALESCE(deduct.deduct_high_voc, 0.00) 
            + COALESCE(trans.trans_high_voc, 0.00)) AS net_high_voc,
           (COALESCE(base.base_prison, 0.00)
-           - COALESCE(deduct.deduct_prison, 0.00)
+           - COALESCE(deduct.deduct_prison, 0.00) 
            + COALESCE(trans.trans_prison, 0.00)) AS net_prison
       FROM departments d
       LEFT JOIN (
@@ -63,7 +66,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
             SUM(CASE WHEN cg.education_level_id = 3 THEN ba.base_budget ELSE 0 END) AS base_prison
           FROM budget_allocations ba
           JOIN class_groups cg ON ba.class_group_id = cg.id
-          WHERE ba.academic_term_id = ?
+          WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY cg.department_id
       ) base ON d.id = base.department_id
       LEFT JOIN (
@@ -76,7 +79,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
           FROM inter_department_shares s
           JOIN budget_allocations ba ON s.allocation_id = ba.id
           JOIN class_groups cg ON ba.class_group_id = cg.id
-          WHERE ba.academic_term_id = ?
+          WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY s.source_department_id
       ) deduct ON d.id = deduct.source_department_id
       LEFT JOIN (
@@ -89,12 +92,17 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
           FROM inter_department_shares s
           JOIN budget_allocations ba ON s.allocation_id = ba.id
           JOIN class_groups cg ON ba.class_group_id = cg.id
-          WHERE ba.academic_term_id = ?
+          WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY s.target_department_id
       ) trans ON d.id = trans.target_department_id
     `;
 
-    const deptParams: any[] = [term_id, term_id, term_id];
+    const deptParams: any[] = [];
+    if (hasCalcType) {
+      deptParams.push(term_id, calculation_type, term_id, calculation_type, term_id, calculation_type);
+    } else {
+      deptParams.push(term_id, term_id, term_id);
+    }
 
     if (department_id && department_id !== 'all') {
       deptQuery += ' WHERE d.id = ?';
@@ -106,6 +114,9 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     const [deptRows] = await pool.query<RowDataPacket[]>(deptQuery, deptParams);
 
     // 2. Education Level Breakdown (ปวช. / ปวส. / เรือนจำ)
+    const levelParams: any[] = [term_id];
+    if (hasCalcType) levelParams.push(calculation_type);
+
     const [levelRows] = await pool.query<RowDataPacket[]>(
       `
       SELECT 
@@ -116,14 +127,17 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
         COALESCE(SUM(ba.base_budget), 0.00) as base_budget
       FROM education_levels el
       LEFT JOIN class_groups cg ON el.id = cg.education_level_id
-      LEFT JOIN budget_allocations ba ON cg.id = ba.class_group_id AND ba.academic_term_id = ?
+      LEFT JOIN budget_allocations ba ON cg.id = ba.class_group_id AND ba.academic_term_id = ? ${calcCondition}
       GROUP BY el.id, el.code, el.name
       ORDER BY el.id ASC
     `,
-      [term_id]
+      levelParams
     );
 
     // 3. Global KPI Calculations
+    const kpiParams: any[] = [term_id];
+    if (hasCalcType) kpiParams.push(calculation_type);
+
     const [kpiRows] = await pool.query<RowDataPacket[]>(
       `
       SELECT 
@@ -131,9 +145,9 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
         COALESCE(SUM(ba.student_count), 0) AS total_students,
         COALESCE(SUM(ba.base_budget), 0.00) AS total_base_budget
       FROM budget_allocations ba
-      WHERE ba.academic_term_id = ?
+      WHERE ba.academic_term_id = ? ${calcCondition}
     `,
-      [term_id]
+      kpiParams
     );
 
     const [transferKpi] = await pool.query<RowDataPacket[]>(
@@ -141,9 +155,9 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
       SELECT COALESCE(SUM(s.share_amount), 0.00) AS total_inter_shares
       FROM inter_department_shares s
       JOIN budget_allocations ba ON s.allocation_id = ba.id
-      WHERE ba.academic_term_id = ?
+      WHERE ba.academic_term_id = ? ${calcCondition}
     `,
-      [term_id]
+      kpiParams
     );
 
     const kpis = {

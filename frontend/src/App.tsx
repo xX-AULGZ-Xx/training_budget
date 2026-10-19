@@ -17,7 +17,8 @@ import {
   LevelSummary,
   SummaryKPIs,
   AuditLog,
-  SystemSettings
+  SystemSettings,
+  CalculationType
 } from './types';
 import {
   showConfirmDialog,
@@ -43,6 +44,7 @@ export function App() {
   });
 
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
+  const [calculationType, setCalculationType] = useState<CalculationType>('REGULAR');
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
   const [editingAllocation, setEditingAllocation] = useState<Allocation | null>(null);
@@ -104,18 +106,18 @@ export function App() {
     initData();
   }, []);
 
-  // 2. Load Term-specific data: Allocations, Summary, Logs
+  // 2. Load Term-specific data: Allocations, Summary, Logs (Filtered by Term, Department & Calculation Type)
   const loadTermData = useCallback(async () => {
     if (!selectedTerm) return;
     try {
       setLoading(true);
       const [allocRes, sumRes, logsRes] = await Promise.all([
-        fetch(`/api/v1/allocations?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}`).then((r) =>
-          r.json()
-        ),
-        fetch(`/api/v1/summary?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}`).then((r) =>
-          r.json()
-        ),
+        fetch(
+          `/api/v1/allocations?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}&calculation_type=${calculationType}`
+        ).then((r) => r.json()),
+        fetch(
+          `/api/v1/summary?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}&calculation_type=${calculationType}`
+        ).then((r) => r.json()),
         fetch(`/api/v1/summary/logs?term_id=${selectedTerm.id}`).then((r) => r.json())
       ]);
 
@@ -137,7 +139,7 @@ export function App() {
     } finally {
       setLoading(false);
     }
-  }, [selectedTerm, selectedDepartmentId]);
+  }, [selectedTerm, selectedDepartmentId, calculationType]);
 
   useEffect(() => {
     loadTermData();
@@ -211,7 +213,7 @@ export function App() {
   // PDF Report Download
   const handleDownloadPdf = () => {
     if (!selectedTerm) return;
-    const url = `/api/v1/reports/pdf?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}`;
+    const url = `/api/v1/reports/pdf?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}&calculation_type=${calculationType}`;
     window.open(url, '_blank');
   };
 
@@ -230,6 +232,8 @@ export function App() {
         onRefresh={loadTermData}
         loading={loading}
         systemSettings={systemSettings}
+        calculationType={calculationType}
+        onChangeCalculationType={setCalculationType}
       />
 
       {/* Main Content Area */}
@@ -314,6 +318,7 @@ export function App() {
                     classGroups={classGroups}
                     educationLevels={educationLevels}
                     allocations={allocations}
+                    calculationType={calculationType}
                     onSuccess={loadTermData}
                   />
                 )}
@@ -333,6 +338,7 @@ export function App() {
                   allocations={allocations}
                   selectedDepartmentId={selectedDepartmentId}
                   onSelectDepartmentId={setSelectedDepartmentId}
+                  calculationType={calculationType}
                   onEditAllocation={(alloc) => {
                     setEditingAllocation(alloc);
                     setIsEditModalOpen(true);

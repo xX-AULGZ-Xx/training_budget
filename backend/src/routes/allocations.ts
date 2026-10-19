@@ -24,9 +24,9 @@ const allocationSchema = z.object({
   shares: z.array(shareSchema).default([])
 });
 
-// GET /api/v1/allocations?term_id={id}&department_id={id|all}
+// GET /api/v1/allocations?term_id={id}&department_id={id|all}&calculation_type={type|all}
 router.get('/', async (req: Request, res: Response): Promise<void> => {
-  const { term_id, department_id } = req.query;
+  const { term_id, department_id, calculation_type } = req.query;
 
   if (!term_id) {
     res.status(400).json({ success: false, message: 'term_id is required' });
@@ -64,6 +64,11 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     if (department_id && department_id !== 'all') {
       query += ' AND cg.department_id = ?';
       params.push(department_id);
+    }
+
+    if (calculation_type && calculation_type !== 'all') {
+      query += ' AND ba.calculation_type = ?';
+      params.push(calculation_type);
     }
 
     query += ' ORDER BY ba.id DESC';

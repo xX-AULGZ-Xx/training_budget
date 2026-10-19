@@ -28,12 +28,15 @@ function getFontPaths() {
 
 // GET /api/v1/reports/pdf?term_id={id}&department_id={id|all}
 router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
-  const { term_id, department_id } = req.query;
+  const { term_id, department_id, calculation_type } = req.query;
 
   if (!term_id) {
     res.status(400).json({ success: false, message: 'term_id is required' });
     return;
   }
+
+  const hasCalcType = calculation_type && calculation_type !== 'all';
+  const calcCondition = hasCalcType ? ' AND ba.calculation_type = ?' : '';
 
   try {
     // 1. Fetch term info
@@ -82,25 +85,31 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
           SELECT cg.department_id, SUM(ba.student_count) as student_count, SUM(ba.base_budget) AS total_base_budget
           FROM budget_allocations ba
           JOIN class_groups cg ON ba.class_group_id = cg.id
-          WHERE ba.academic_term_id = ?
+          WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY cg.department_id
       ) base ON d.id = base.department_id
       LEFT JOIN (
           SELECT s.source_department_id, SUM(s.share_amount) AS total_deducted
           FROM inter_department_shares s
           JOIN budget_allocations ba ON s.allocation_id = ba.id
-          WHERE ba.academic_term_id = ?
+          WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY s.source_department_id
       ) deduct ON d.id = deduct.source_department_id
       LEFT JOIN (
           SELECT s.target_department_id, SUM(s.share_amount) AS total_transferred
           FROM inter_department_shares s
           JOIN budget_allocations ba ON s.allocation_id = ba.id
-          WHERE ba.academic_term_id = ?
+          WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY s.target_department_id
       ) trans ON d.id = trans.target_department_id
     `;
-    const deptParams: any[] = [term_id, term_id, term_id];
+
+    const deptParams: any[] = [];
+    if (hasCalcType) {
+      deptParams.push(term_id, calculation_type, term_id, calculation_type, term_id, calculation_type);
+    } else {
+      deptParams.push(term_id, term_id, term_id);
+    }
 
     if (department_id && department_id !== 'all') {
       deptQuery += ' WHERE d.id = ?';

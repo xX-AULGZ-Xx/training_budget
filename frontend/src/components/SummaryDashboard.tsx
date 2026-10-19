@@ -5,6 +5,7 @@ import {
   SummaryKPIs,
   Department,
   Allocation,
+  CalculationType,
   CALCULATION_TYPE_LABELS
 } from '../types';
 import {
@@ -29,6 +30,7 @@ interface SummaryDashboardProps {
   allocations: Allocation[];
   selectedDepartmentId: string;
   onSelectDepartmentId: (deptId: string) => void;
+  calculationType: CalculationType;
   onEditAllocation: (allocation: Allocation) => void;
   onDeleteAllocation: (id: number) => void;
   isReadOnly: boolean;
@@ -42,6 +44,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   allocations,
   selectedDepartmentId,
   onSelectDepartmentId,
+  calculationType,
   onEditAllocation,
   onDeleteAllocation,
   isReadOnly
@@ -193,11 +196,16 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
           <div>
             <div className="px-3.5 sm:px-5 py-3 sm:py-3.5 border-b border-slate-200/80 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
               <div>
-                <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
-                  ตารางสรุปผลต่างสุทธิรายแผนก (แยกจำนวนนักเรียน และงบสุทธิ ปวช./ปวส./เรือนจำ)
-                </h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                    ตารางสรุปผลต่างสุทธิรายแผนก (แยกจำนวนนักเรียน และงบสุทธิ ปวช./ปวส./เรือนจำ)
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    {CALCULATION_TYPE_LABELS[calculationType]}
+                  </span>
+                </div>
                 <p className="text-[10px] sm:text-[11px] text-slate-500">
-                  แสดงการปันส่วนงบประมาณค่าวัสดุฝึก รายละเอียดนักเรียน และงบสุทธิแยกตามระดับการศึกษา
+                  แสดงการปันส่วนงบประมาณค่าวัสดุฝึก รายละเอียดนักเรียน และงบสุทธิแยกตามระดับการศึกษา ({CALCULATION_TYPE_LABELS[calculationType]})
                 </p>
               </div>
               <div className="flex items-center justify-between sm:justify-end gap-2">
