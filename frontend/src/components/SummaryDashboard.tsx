@@ -68,6 +68,23 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
     return `รายการจัดสรรทั้งหมด (${allocations.length})`;
   };
 
+  // 3 ประเภทงบนี้ ในแท็บกระทบยอดรายแผนก ให้แสดงแผนกที่มีข้อมูลเท่านั้น
+  const isSpecialCalcType =
+    calculationType === 'SPECIAL_SUPPLEMENTARY' ||
+    calculationType === 'DUAL_EDUCATION' ||
+    calculationType === 'SHORT_COURSE';
+
+  const displayedSpecialDepartments = isSpecialCalcType
+    ? departments.filter((dept) => {
+        const base = Number(dept.base_budget || 0);
+        const students = Number(dept.student_count || 0);
+        const net = Number(dept.net_budget || 0);
+        const deducted = Number(dept.total_deducted || 0);
+        const transferred = Number(dept.total_transferred || 0);
+        return base > 0 || students > 0 || net > 0 || deducted > 0 || transferred > 0;
+      })
+    : departments;
+
   return (
     <div className="space-y-3 sm:space-y-4">
       {/* 1. Global KPI Summary Cards */}
@@ -293,92 +310,100 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200/80 text-xs">
-                    {departments.map((dept, index) => {
-                      const base = Number(dept.base_budget);
-                      const deducted = Number(dept.total_deducted);
-                      const transferred = Number(dept.total_transferred);
-                      const net = Number(dept.net_budget);
-                      const students = Number(dept.student_count || 0);
-                      const isEven = index % 2 === 0;
+                    {displayedSpecialDepartments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-10 text-center text-slate-400 text-xs font-medium">
+                          ยังไม่มีข้อมูลของ{CALCULATION_TYPE_LABELS[calculationType as CalculationType]}ในงวดนี้ (แสดงเฉพาะแผนกที่มีข้อมูล)
+                        </td>
+                      </tr>
+                    ) : (
+                      displayedSpecialDepartments.map((dept, index) => {
+                        const base = Number(dept.base_budget);
+                        const deducted = Number(dept.total_deducted);
+                        const transferred = Number(dept.total_transferred);
+                        const net = Number(dept.net_budget);
+                        const students = Number(dept.student_count || 0);
+                        const isEven = index % 2 === 0;
 
-                      return (
-                        <tr
-                          key={dept.department_id}
-                          className={`${isEven ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50 transition-colors`}
-                        >
-                          <td className="py-2.5 px-4 font-bold text-slate-900 border-r border-slate-200 whitespace-nowrap">
-                            <div className="flex items-center space-x-1.5">
-                              <span>{dept.department_name}</span>
-                              {dept.is_service_department === 1 && (
-                                <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
-                                  สอนช่วย
+                        return (
+                          <tr
+                            key={dept.department_id}
+                            className={`${isEven ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50 transition-colors`}
+                          >
+                            <td className="py-2.5 px-4 font-bold text-slate-900 border-r border-slate-200 whitespace-nowrap">
+                              <div className="flex items-center space-x-1.5">
+                                <span>{dept.department_name}</span>
+                                {dept.is_service_department === 1 && (
+                                  <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                    สอนช่วย
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-slate-800 border-r border-slate-200 font-semibold tabular-nums">
+                              {students > 0 ? students.toLocaleString() : <span className="text-slate-400 font-normal">0</span>}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-slate-800 border-r border-slate-200 font-medium tabular-nums">
+                              {base.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right border-r border-slate-200 tabular-nums">
+                              {deducted > 0 ? (
+                                <span className="text-rose-600 font-medium">
+                                  ({deducted.toLocaleString('en-US', { maximumFractionDigits: 2 })})
                                 </span>
+                              ) : (
+                                <span className="text-slate-400 font-normal">(0)</span>
                               )}
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3 text-right text-slate-800 border-r border-slate-200 font-semibold tabular-nums">
-                            {students > 0 ? students.toLocaleString() : <span className="text-slate-400 font-normal">0</span>}
-                          </td>
-                          <td className="py-2.5 px-3 text-right text-slate-800 border-r border-slate-200 font-medium tabular-nums">
-                            {base.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="py-2.5 px-3 text-right border-r border-slate-200 tabular-nums">
-                            {deducted > 0 ? (
-                              <span className="text-rose-600 font-medium">
-                                ({deducted.toLocaleString('en-US', { maximumFractionDigits: 2 })})
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 font-normal">(0)</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-3 text-right border-r border-slate-200 tabular-nums">
-                            {transferred > 0 ? (
-                              <span className="text-emerald-700 font-medium">
-                                {transferred.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 font-normal">0</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-4 text-right font-black bg-blue-50/70 text-blue-900 border-l border-blue-200 text-sm tabular-nums">
-                            {net > 0 ? (
-                              net.toLocaleString('en-US', { maximumFractionDigits: 2 })
-                            ) : (
-                              <span className="text-slate-400 font-normal text-xs">0</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right border-r border-slate-200 tabular-nums">
+                              {transferred > 0 ? (
+                                <span className="text-emerald-700 font-medium">
+                                  {transferred.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-normal">0</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-4 text-right font-black bg-blue-50/70 text-blue-900 border-l border-blue-200 text-sm tabular-nums">
+                              {net > 0 ? (
+                                net.toLocaleString('en-US', { maximumFractionDigits: 2 })
+                              ) : (
+                                <span className="text-slate-400 font-normal text-xs">0</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
-                  {departments.length > 0 && (
+                  {displayedSpecialDepartments.length > 0 && (
                     <tfoot className="bg-slate-100 font-extrabold border-t-2 border-slate-300 text-xs">
                       <tr>
                         <td className="py-3 px-4 text-slate-900 border-r border-slate-300 whitespace-nowrap">
-                          รวมทั้งสิ้น ({departments.length} แผนก)
+                          รวมทั้งสิ้น ({displayedSpecialDepartments.length} แผนก)
                         </td>
                         <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 font-bold tabular-nums">
-                          {departments
+                          {displayedSpecialDepartments
                             .reduce((sum, d) => sum + Number(d.student_count || 0), 0)
                             .toLocaleString()}
                         </td>
                         <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 tabular-nums">
-                          {departments
+                          {displayedSpecialDepartments
                             .reduce((sum, d) => sum + Number(d.base_budget), 0)
                             .toLocaleString('en-US', { maximumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-3 text-right text-rose-700 border-r border-slate-300 tabular-nums">
-                          ({departments
+                          ({displayedSpecialDepartments
                             .reduce((sum, d) => sum + Number(d.total_deducted), 0)
                             .toLocaleString('en-US', { maximumFractionDigits: 2 })})
                         </td>
                         <td className="py-3 px-3 text-right text-emerald-700 border-r border-slate-300 tabular-nums">
-                          {departments
+                          {displayedSpecialDepartments
                             .reduce((sum, d) => sum + Number(d.total_transferred), 0)
                             .toLocaleString('en-US', { maximumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-4 text-right font-black text-blue-900 bg-blue-100/90 border-l border-blue-300 text-sm tabular-nums">
-                          {departments
+                          {displayedSpecialDepartments
                             .reduce((sum, d) => sum + Number(d.net_budget), 0)
                             .toLocaleString('en-US', { maximumFractionDigits: 2 })}
                         </td>
