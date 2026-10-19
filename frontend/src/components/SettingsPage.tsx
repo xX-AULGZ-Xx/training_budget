@@ -62,8 +62,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     college_code: 'CVC',
     affiliation: 'สำนักงานคณะกรรมการการอาชีวศึกษา กระทรวงศึกษาธิการ',
     department_name: 'งานวางแผนและงบประมาณ ฝ่ายแผนงานและความร่วมมือ',
-    director_name: 'นายผู้อำนวยการ วิทยาลัยอาชีวศึกษาเชียงราย',
-    planner_name: 'หัวหน้างานวางแผนและงบประมาณ',
+    director_name: '',
+    planner_name: 'หัวหน้างานพัฒนายุทธศาสตร์แผนงานและงบประมาณ',
     default_operator: 'เจ้าหน้าที่แผนงาน',
     default_rate_voc: '350',
     default_rate_high_voc: '350',
@@ -813,7 +813,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    ชื่อผู้อำนวยการสถานศึกษา
+                    ชื่อผู้อำนวยการวิทยาลัย / สถานศึกษา
                   </label>
                   <input
                     type="text"
@@ -821,14 +821,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     onChange={(e) =>
                       setSystemSettings({ ...systemSettings, director_name: e.target.value })
                     }
-                    placeholder="เช่น นายผู้อำนวยการ วิทยาลัย..."
+                    placeholder="ชื่อ-นามสกุล ผู้อำนวยการ (เว้นว่างเพื่อแสดงจุดประ)"
                     className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    ชื่อหัวหน้างานวางแผนและงบประมาณ
+                    ชื่อหัวหน้างานพัฒนายุทธศาสตร์แผนงานและงบประมาณ
                   </label>
                   <input
                     type="text"
@@ -836,7 +836,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     onChange={(e) =>
                       setSystemSettings({ ...systemSettings, planner_name: e.target.value })
                     }
-                    placeholder="เช่น นางสาวแผนงาน งบประมาณ"
+                    placeholder="ชื่อ-นามสกุล หัวหน้างาน (เว้นว่างเพื่อแสดงจุดประ)"
                     className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>

@@ -60,12 +60,40 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
       settings[r.setting_key] = r.setting_value;
     });
 
-    const collegeName = settings.college_name || 'วิทยาลัยอาชีวศึกษาเชียงราย';
+    const collegeName = settings.college_name || 'วิทยาลัยการอาชีพเชียงราย';
     const deptName = settings.department_name || 'งานวางแผนและงบประมาณ ฝ่ายแผนงานและความร่วมมือ';
     const affiliation = settings.affiliation || 'สำนักงานคณะกรรมการการอาชีวศึกษา กระทรวงศึกษาธิการ';
-    const directorName = settings.director_name || 'ผู้อำนวยการสถานศึกษา';
-    const plannerName = settings.planner_name || 'หัวหน้างานวางแผนและงบประมาณ';
-    const operatorName = settings.default_operator || 'เจ้าหน้าที่งานวางแผนและงบประมาณ';
+
+    // 1. Operator
+    const operatorName = settings.default_operator || 'เจ้าหน้าที่แผนงาน';
+
+    // 2. Planner (หัวหน้างานพัฒนายุทธศาสตร์แผนงานและงบประมาณ)
+    const rawPlannerName = settings.planner_name || '';
+    const plannerTitle = 'หัวหน้างานพัฒนายุทธศาสตร์\nแผนงานและงบประมาณ';
+    const displayPlannerName =
+      !rawPlannerName ||
+      rawPlannerName === 'หัวหน้างานวางแผนและงบประมาณ' ||
+      rawPlannerName === 'หัวหน้างานพัฒนายุทธศาสตร์แผนงานและงบประมาณ' ||
+      rawPlannerName.includes('หัวหน้างาน')
+        ? '.....................................................'
+        : rawPlannerName;
+
+    // 3. Director (ผู้บริหาร)
+    const rawDirectorName = settings.director_name || '';
+    let directorTitle = settings.director_title || '';
+    if (!directorTitle) {
+      if (collegeName.startsWith('วิทยาลัย') || collegeName.startsWith('สถาบัน')) {
+        directorTitle = `ผู้อำนวยการ${collegeName}`;
+      } else {
+        directorTitle = `ผู้อำนวยการ${collegeName ? collegeName : 'สถานศึกษา'}`;
+      }
+    }
+    const displayDirectorName =
+      !rawDirectorName ||
+      rawDirectorName.includes('ผู้อำนวยการ') ||
+      rawDirectorName.includes('วิทยาลัย')
+        ? '.....................................................'
+        : rawDirectorName;
 
     // 3. Fetch Department Summary
     let deptQuery = `
@@ -234,24 +262,29 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
       currentY = 50;
     }
 
-    doc.fillColor('#1e293b');
-    doc.font(fontRegular).fontSize(10.5);
-
     const sigY = currentY;
+    const colWidth = 165;
+    const col1X = 36;
+    const col2X = 215;
+    const col3X = 394;
+
+    doc.fillColor('#1e293b');
+    doc.font(fontRegular).fontSize(10);
+
     // Signature 1: Operator
-    doc.text('ลงชื่อ .....................................................', 45, sigY);
-    doc.text(`( ${operatorName} )`, 55, sigY + 16);
-    doc.text('เจ้าหน้าที่ผู้จัดทำงบประมาณ', 62, sigY + 30);
+    doc.text('ลงชื่อ .....................................................', col1X, sigY, { width: colWidth, align: 'center' });
+    doc.text(`( ${operatorName} )`, col1X, sigY + 16, { width: colWidth, align: 'center' });
+    doc.text('เจ้าหน้าที่ผู้จัดทำงบประมาณ', col1X, sigY + 32, { width: colWidth, align: 'center' });
 
-    // Signature 2: Planner
-    doc.text('ลงชื่อ .....................................................', 215, sigY);
-    doc.text(`( ${plannerName} )`, 225, sigY + 16);
-    doc.text('หัวหน้างานวางแผนและงบประมาณ', 222, sigY + 30);
+    // Signature 2: Planner (Red: หัวหน้างานพัฒนายุทธศาสตร์แผนงานและงบประมาณ)
+    doc.text('ลงชื่อ .....................................................', col2X, sigY, { width: colWidth, align: 'center' });
+    doc.text(`( ${displayPlannerName} )`, col2X, sigY + 16, { width: colWidth, align: 'center' });
+    doc.text(plannerTitle, col2X, sigY + 32, { width: colWidth, align: 'center', lineGap: -1 });
 
-    // Signature 3: Director
-    doc.text('ลงชื่อ .....................................................', 390, sigY);
-    doc.text(`( ${directorName} )`, 400, sigY + 16);
-    doc.text('ผู้อำนวยการสถานศึกษา', 420, sigY + 30);
+    // Signature 3: Director (LightGreen: ผู้บริหาร - ผู้อำนวยการวิทยาลัย...)
+    doc.text('ลงชื่อ .....................................................', col3X, sigY, { width: colWidth, align: 'center' });
+    doc.text(`( ${displayDirectorName} )`, col3X, sigY + 16, { width: colWidth, align: 'center' });
+    doc.text(directorTitle, col3X, sigY + 32, { width: colWidth, align: 'center' });
 
     doc.end();
   } catch (error: any) {
