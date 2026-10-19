@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AcademicTerm, SystemSettings } from '../types';
 import {
   School,
@@ -10,7 +10,9 @@ import {
   RefreshCw,
   LayoutDashboard,
   Settings,
-  Rocket
+  Rocket,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -27,6 +29,30 @@ interface HeaderProps {
   systemSettings?: SystemSettings | null;
 }
 
+const VIEW_OPTIONS = [
+  {
+    id: 'budget' as const,
+    label: 'จัดสรรงบประมาณ',
+    shortLabel: 'จัดสรรงบ',
+    desc: 'คิดคำนวณและจัดสรรงบประมาณค่าวัสดุฝึก',
+    icon: LayoutDashboard
+  },
+  {
+    id: 'settings' as const,
+    label: 'ตั้งค่าระบบ (Setup)',
+    shortLabel: 'ตั้งค่าระบบ',
+    desc: 'สถานศึกษา แผนก กลุ่มเรียน และฐานข้อมูล',
+    icon: Settings
+  },
+  {
+    id: 'startup' as const,
+    label: 'Start Up Setting',
+    shortLabel: 'Start Up',
+    desc: 'ตัวช่วยติดตั้งและเริ่มต้นระบบครั้งแรก',
+    icon: Rocket
+  }
+];
+
 export const Header: React.FC<HeaderProps> = ({
   currentView,
   onChangeView,
@@ -41,6 +67,27 @@ export const Header: React.FC<HeaderProps> = ({
   systemSettings
 }) => {
   const isReadOnly = selectedTerm?.status !== 'OPEN';
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const currentViewObj = VIEW_OPTIONS.find((v) => v.id === currentView) || VIEW_OPTIONS[0];
+  const CurrentViewIcon = currentViewObj.icon;
+
+  const handleSelectView = (view: 'budget' | 'settings' | 'startup') => {
+    onChangeView(view);
+    setIsDropdownOpen(false);
+  };
 
   return (
     <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-xs">
@@ -69,54 +116,6 @@ export const Header: React.FC<HeaderProps> = ({
             <h1 className="text-sm sm:text-base lg:text-lg font-bold text-slate-900 leading-tight truncate sm:whitespace-normal">
               ระบบการคิดคำนวณและจัดสรรงบประมาณค่าวัสดุฝึก
             </h1>
-          </div>
-        </div>
-
-        {/* Center: Main View Navigation Switcher */}
-        <div className="w-full xl:w-auto flex items-center justify-center overflow-x-auto scrollbar-none py-0.5">
-          <div className="inline-flex items-center p-0.5 sm:p-1 bg-slate-100/90 rounded-xl border border-slate-200 shadow-inner shrink-0">
-            <button
-              onClick={() => onChangeView('budget')}
-              className={`flex items-center space-x-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                currentView === 'budget'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
-              <span>
-                <span className="hidden sm:inline">จัดสรรงบประมาณ</span>
-                <span className="sm:hidden">จัดสรรงบ</span>
-              </span>
-            </button>
-            <button
-              onClick={() => onChangeView('settings')}
-              className={`flex items-center space-x-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                currentView === 'settings'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Settings className="w-3.5 h-3.5 shrink-0" />
-              <span>
-                <span className="hidden sm:inline">ตั้งค่าระบบ (Setup)</span>
-                <span className="sm:hidden">ตั้งค่าระบบ</span>
-              </span>
-            </button>
-            <button
-              onClick={() => onChangeView('startup')}
-              className={`flex items-center space-x-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                currentView === 'startup'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Rocket className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <span>
-                <span className="hidden sm:inline">Start Up Setting</span>
-                <span className="sm:hidden">Start Up</span>
-              </span>
-            </button>
           </div>
         </div>
 
@@ -197,6 +196,72 @@ export const Header: React.FC<HeaderProps> = ({
               <FileText className="w-3.5 h-3.5" />
               <span>พิมพ์ PDF</span>
             </button>
+
+            {/* View Switcher Dropdown (ย้ายจากตรงกลางมาด้านขวา) */}
+            <div className="relative shrink-0" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className={`inline-flex items-center space-x-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
+                  isDropdownOpen
+                    ? 'bg-blue-50 text-blue-700 border-blue-300 ring-2 ring-blue-100'
+                    : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
+                }`}
+                title="เลือกหน้าการทำงาน / เมนูระบบ"
+              >
+                <CurrentViewIcon className={`w-3.5 h-3.5 ${
+                  currentView === 'budget' ? 'text-blue-600' : currentView === 'settings' ? 'text-indigo-600' : 'text-blue-500'
+                }`} />
+                <span>
+                  <span className="hidden sm:inline">{currentViewObj.label}</span>
+                  <span className="sm:hidden">{currentViewObj.shortLabel}</span>
+                </span>
+                <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
+              </button>
+
+              {/* Floating Menu */}
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>เมนูการทำงานหลัก</span>
+                    <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">3 หน้า</span>
+                  </div>
+                  <div className="p-1 space-y-0.5">
+                    {VIEW_OPTIONS.map((opt) => {
+                      const Icon = opt.icon;
+                      const isSelected = currentView === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => handleSelectView(opt.id)}
+                          className={`w-full flex items-start space-x-2.5 p-2 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-50/90 text-blue-800 font-bold'
+                              : 'text-slate-700 hover:bg-slate-50 font-medium'
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                            isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="truncate">{opt.label}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-1" />}
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-normal truncate mt-0.5">
+                              {opt.desc}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
