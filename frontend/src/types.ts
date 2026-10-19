@@ -39,10 +39,20 @@ export interface ShareItem {
   target_department_name?: string;
 }
 
+export type CalculationType = 'REGULAR' | 'SPECIAL_SUPPLEMENTARY' | 'DUAL_EDUCATION' | 'SHORT_COURSE';
+
+export const CALCULATION_TYPE_LABELS: Record<CalculationType, string> = {
+  REGULAR: 'ภาคปกติ',
+  SPECIAL_SUPPLEMENTARY: 'ภาคสมทบ',
+  DUAL_EDUCATION: 'ภาคทวิศึกษา',
+  SHORT_COURSE: 'ระยะสั้น'
+};
+
 export interface Allocation {
   id: number;
   academic_term_id: number;
   class_group_id: number;
+  calculation_type?: CalculationType;
   student_count: number;
   total_practice_hours: number;
   rate_per_head: number;

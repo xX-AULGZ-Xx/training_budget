@@ -49,10 +49,16 @@ CREATE TABLE IF NOT EXISTS `budget_allocations` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `academic_term_id` INT UNSIGNED NOT NULL,
     `class_group_id` INT UNSIGNED NOT NULL,
+    `calculation_type` ENUM('REGULAR', 'SPECIAL_SUPPLEMENTARY', 'DUAL_EDUCATION', 'SHORT_COURSE') NOT NULL DEFAULT 'REGULAR',
     `student_count` INT UNSIGNED NOT NULL DEFAULT 0,
     `total_practice_hours` DECIMAL(5, 2) NOT NULL DEFAULT 0.00,
     `rate_per_head` DECIMAL(8, 2) NOT NULL DEFAULT 350.00,
-    `base_budget` DECIMAL(12, 2) GENERATED ALWAYS AS (`student_count` * `rate_per_head`) STORED,
+    `base_budget` DECIMAL(12, 2) GENERATED ALWAYS AS (
+        CASE 
+            WHEN `calculation_type` = 'SHORT_COURSE' THEN `student_count` * `total_practice_hours` * `rate_per_head`
+            ELSE `student_count` * `rate_per_head`
+        END
+    ) STORED,
     `created_by` VARCHAR(100) NOT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `fk_alloc_term` FOREIGN KEY (`academic_term_id`) REFERENCES `academic_terms` (`id`),

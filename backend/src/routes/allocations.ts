@@ -11,9 +11,12 @@ const shareSchema = z.object({
   remark: z.string().optional().nullable()
 });
 
+const calculationTypeEnum = z.enum(['REGULAR', 'SPECIAL_SUPPLEMENTARY', 'DUAL_EDUCATION', 'SHORT_COURSE']).default('REGULAR');
+
 const allocationSchema = z.object({
   term_id: z.number().int().positive(),
   class_group_id: z.number().int().positive(),
+  calculation_type: calculationTypeEnum,
   student_count: z.number().int().nonnegative(),
   total_practice_hours: z.number().nonnegative().default(0),
   rate_per_head: z.number().positive().default(350),
@@ -36,6 +39,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
         ba.id,
         ba.academic_term_id,
         ba.class_group_id,
+        ba.calculation_type,
         ba.student_count,
         ba.total_practice_hours,
         ba.rate_per_head,
@@ -116,7 +120,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const { term_id, class_group_id, student_count, total_practice_hours, rate_per_head, created_by, shares } = parsed.data;
+  const { term_id, class_group_id, calculation_type, student_count, total_practice_hours, rate_per_head, created_by, shares } = parsed.data;
 
   const conn = await pool.getConnection();
   try {
@@ -151,7 +155,9 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     }
 
     const sourceDepartmentId = groupRows[0].department_id;
-    const baseBudget = student_count * rate_per_head;
+    const baseBudget = calculation_type === 'SHORT_COURSE'
+      ? student_count * total_practice_hours * rate_per_head
+      : student_count * rate_per_head;
     const totalShareAmount = shares.reduce((acc, curr) => acc + curr.share_amount, 0);
 
     if (totalShareAmount > baseBudget) {
@@ -179,18 +185,18 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       actionType = 'UPDATE';
       await conn.query(
         `UPDATE budget_allocations 
-         SET student_count = ?, total_practice_hours = ?, rate_per_head = ?, created_by = ?
+         SET calculation_type = ?, student_count = ?, total_practice_hours = ?, rate_per_head = ?, created_by = ?
          WHERE id = ?`,
-        [student_count, total_practice_hours, rate_per_head, created_by, allocationId]
+        [calculation_type, student_count, total_practice_hours, rate_per_head, created_by, allocationId]
       );
       // Remove old shares to replace with new set
       await conn.query('DELETE FROM inter_department_shares WHERE allocation_id = ?', [allocationId]);
     } else {
       const [insertResult] = await conn.query<ResultSetHeader>(
         `INSERT INTO budget_allocations 
-         (academic_term_id, class_group_id, student_count, total_practice_hours, rate_per_head, created_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [term_id, class_group_id, student_count, total_practice_hours, rate_per_head, created_by]
+         (academic_term_id, class_group_id, calculation_type, student_count, total_practice_hours, rate_per_head, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [term_id, class_group_id, calculation_type, student_count, total_practice_hours, rate_per_head, created_by]
       );
       allocationId = insertResult.insertId;
     }
@@ -213,6 +219,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       allocation_id: allocationId,
       academic_term_id: term_id,
       class_group_id,
+      calculation_type,
       group_name: groupRows[0].group_name,
       student_count,
       total_practice_hours,
@@ -258,12 +265,12 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const { student_count, total_practice_hours, rate_per_head, created_by, shares } = req.body;
+  const { calculation_type, student_count, total_practice_hours, rate_per_head, created_by, shares } = req.body;
   const conn = await pool.getConnection();
 
   try {
     const [rows] = await conn.query<RowDataPacket[]>(
-      `SELECT ba.id, ba.academic_term_id, ba.class_group_id, cg.department_id, cg.group_name, t.status
+      `SELECT ba.id, ba.academic_term_id, ba.class_group_id, ba.calculation_type, cg.department_id, cg.group_name, t.status
        FROM budget_allocations ba
        JOIN class_groups cg ON ba.class_group_id = cg.id
        JOIN academic_terms t ON ba.academic_term_id = t.id
@@ -285,13 +292,16 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     }
 
     const currentAlloc = rows[0];
+    const finalCalcType = calculation_type !== undefined ? calculation_type : (currentAlloc.calculation_type || 'REGULAR');
     const finalStudentCount = student_count !== undefined ? Number(student_count) : currentAlloc.student_count;
     const finalRate = rate_per_head !== undefined ? Number(rate_per_head) : currentAlloc.rate_per_head;
     const finalHours = total_practice_hours !== undefined ? Number(total_practice_hours) : currentAlloc.total_practice_hours;
     const finalCreatedBy = created_by || 'เจ้าหน้าที่แผนงาน';
     const finalShares = shares || [];
 
-    const baseBudget = finalStudentCount * finalRate;
+    const baseBudget = finalCalcType === 'SHORT_COURSE'
+      ? finalStudentCount * finalHours * finalRate
+      : finalStudentCount * finalRate;
     const totalShareAmount = finalShares.reduce((acc: number, curr: any) => acc + (Number(curr.share_amount) || 0), 0);
 
     if (totalShareAmount > baseBudget) {
@@ -306,9 +316,9 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
 
     await conn.query(
       `UPDATE budget_allocations 
-       SET student_count = ?, total_practice_hours = ?, rate_per_head = ?, created_by = ?
+       SET calculation_type = ?, student_count = ?, total_practice_hours = ?, rate_per_head = ?, created_by = ?
        WHERE id = ?`,
-      [finalStudentCount, finalHours, finalRate, finalCreatedBy, id]
+      [finalCalcType, finalStudentCount, finalHours, finalRate, finalCreatedBy, id]
     );
 
     // Replace shares
@@ -330,6 +340,7 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
       allocation_id: Number(id),
       academic_term_id: currentAlloc.academic_term_id,
       class_group_id: currentAlloc.class_group_id,
+      calculation_type: finalCalcType,
       group_name: currentAlloc.group_name,
       student_count: finalStudentCount,
       total_practice_hours: finalHours,

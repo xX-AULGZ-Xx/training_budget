@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Department, ClassGroup, EducationLevel, ShareItem, Allocation } from '../types';
+import { Department, ClassGroup, EducationLevel, ShareItem, Allocation, CalculationType, CALCULATION_TYPE_LABELS } from '../types';
 import { Plus, Trash2, Calculator, AlertCircle, Save, CheckCircle2, RotateCcw } from 'lucide-react';
 import { showSuccessToast, showErrorAlert } from '../utils/alerts';
 
@@ -22,6 +22,9 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   allocations,
   onSuccess
 }) => {
+  // ประเภทการคำนวณงบประมาณ
+  const [calculationType, setCalculationType] = useState<CalculationType>('REGULAR');
+
   // Cascaded Selection States (Matching user design: แผนกวิชา -> [ระดับ] [เลือกกลุ่ม])
   const [selectedDeptId, setSelectedDeptId] = useState<number | ''>('');
   const [selectedLevelId, setSelectedLevelId] = useState<number | 'all'>('all');
@@ -40,6 +43,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   // Auto-populate form when selecting an existing class group or clear when empty/new
   useEffect(() => {
     if (!selectedGroupId) {
+      setCalculationType('REGULAR');
       setStudentCount('');
       setPracticeHours('');
       setRatePerHead('');
@@ -48,6 +52,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
     }
     const existing = allocations.find((a) => a.class_group_id === Number(selectedGroupId));
     if (existing) {
+      setCalculationType(existing.calculation_type || 'REGULAR');
       setStudentCount(existing.student_count);
       setPracticeHours(existing.total_practice_hours);
       setRatePerHead(existing.rate_per_head);
@@ -60,6 +65,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
         })) || []
       );
     } else {
+      setCalculationType('REGULAR');
       setStudentCount('');
       setPracticeHours('');
       setRatePerHead('');
@@ -116,8 +122,12 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   const practiceNum = typeof practiceHours === 'number' ? practiceHours : (parseFloat(practiceHours as any) || 0);
   const rateNum = typeof ratePerHead === 'number' ? ratePerHead : (parseFloat(ratePerHead as any) || 0);
 
+  const isShortCourse = calculationType === 'SHORT_COURSE';
+
   // Reactive Base Budget Calculation
-  const baseBudget = Math.max(0, studentNum * rateNum);
+  // สำหรับหลักสูตรระยะสั้น: ผู้เรียน (คน) × ชั่วโมงฝึกอบรม (ชม.) × อัตรา/คน/ชม. (บาท)
+  // สำหรับภาคปกติ / ภาคสมทบ / ภาคทวิศึกษา: นักเรียน (คน) × อัตราต่อหัว (บาท)
+  const baseBudget = Math.max(0, isShortCourse ? studentNum * practiceNum * rateNum : studentNum * rateNum);
   const totalShares = shares.reduce((acc, curr) => acc + (Number(curr.share_amount) || 0), 0);
   const netDepartmentBudget = baseBudget - totalShares;
   const isOverBudget = totalShares > baseBudget;
@@ -131,6 +141,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   );
 
   const handleResetForm = () => {
+    setCalculationType('REGULAR');
     setSelectedDeptId('');
     setSelectedLevelId('all');
     setSelectedGroupId('');
@@ -171,11 +182,15 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
       return;
     }
     if (studentNum <= 0) {
-      setErrorMessage('กรุณาระบุจำนวนนักเรียน (คน)');
+      setErrorMessage(isShortCourse ? 'กรุณาระบุจำนวนผู้เรียน (คน)' : 'กรุณาระบุจำนวนนักเรียน (คน)');
+      return;
+    }
+    if (isShortCourse && practiceNum <= 0) {
+      setErrorMessage('กรุณาระบุจำนวนชั่วโมงฝึกอบรม (ชม.) สำหรับหลักสูตรระยะสั้น');
       return;
     }
     if (rateNum <= 0) {
-      setErrorMessage('กรุณาระบุอัตราต่อหัว (บาท)');
+      setErrorMessage(isShortCourse ? 'กรุณาระบุอัตราค่าวัสดุต่อคนต่อชั่วโมง (บาท)' : 'กรุณาระบุอัตราต่อหัว (บาท)');
       return;
     }
     if (isOverBudget) {
@@ -194,6 +209,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
         body: JSON.stringify({
           term_id: termId,
           class_group_id: Number(selectedGroupId),
+          calculation_type: calculationType,
           student_count: studentNum,
           total_practice_hours: practiceNum,
           rate_per_head: rateNum,
@@ -221,6 +237,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   };
 
   const hasFormContent =
+    calculationType !== 'REGULAR' ||
     selectedDeptId !== '' ||
     selectedGroupId !== '' ||
     studentCount !== '' ||
@@ -279,7 +296,33 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
 
           {/* 1. Cascaded Department & Class Group Selection (Matching user image request) */}
           <div className="space-y-2.5 sm:space-y-3">
-            {/* 1.1 แผนกวิชา */}
+            {/* 1.1 ประเภทการคำนวณงบ (Dropdown: ภาคปกติ, ภาคสมทบ, ภาคทวิศึกษา, ระยะสั้น) */}
+            <div>
+              <div className="flex items-center justify-between mb-1 sm:mb-1.5">
+                <label className="text-xs font-bold text-indigo-600 flex items-center space-x-1.5">
+                  <span>ประเภทการคำนวณงบ</span>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/50">
+                    {CALCULATION_TYPE_LABELS[calculationType]}
+                  </span>
+                </label>
+                <span className="text-[10px] text-slate-500 font-normal">
+                  {isShortCourse ? 'สูตร: คน × ชม. × อัตรา/คน/ชม.' : 'สูตร: คน × อัตรา/หัว'}
+                </span>
+              </div>
+              <select
+                value={calculationType}
+                onChange={(e) => setCalculationType(e.target.value as CalculationType)}
+                disabled={isReadOnly}
+                className="w-full bg-slate-50/80 border border-indigo-200 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors cursor-pointer"
+              >
+                <option value="REGULAR">ภาคปกติ (Regular)</option>
+                <option value="SPECIAL_SUPPLEMENTARY">ภาคสมทบ (Special Supplementary)</option>
+                <option value="DUAL_EDUCATION">ภาคทวิศึกษา (Dual Education)</option>
+                <option value="SHORT_COURSE">ระยะสั้น (Short-term Course)</option>
+              </select>
+            </div>
+
+            {/* 1.2 แผนกวิชา */}
             <div>
               <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
                 แผนกวิชา
@@ -303,7 +346,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
               </select>
             </div>
 
-            {/* 1.2 ชื่อกลุ่มเรียน */}
+            {/* 1.3 ชื่อกลุ่มเรียน */}
             <div>
               <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
                 ชื่อกลุ่มเรียน
@@ -356,7 +399,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
             <div>
               <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
-                จำนวน นร. (คน) <span className="text-red-500">*</span>
+                {isShortCourse ? 'จำนวนผู้เรียน (คน)' : 'จำนวน นร. (คน)'} <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -370,7 +413,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
             </div>
             <div>
               <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
-                ชม.ฝึกปฏิบัติ
+                {isShortCourse ? 'ชม.ฝึกอบรม (ชม.)' : 'ชม.ฝึกปฏิบัติ'} {isShortCourse && <span className="text-red-500">*</span>}
               </label>
               <input
                 type="number"
@@ -380,12 +423,14 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                 value={practiceHours}
                 onChange={(e) => setPracticeHours(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                 disabled={isReadOnly}
-                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-1.5 sm:p-2 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
+                className={`w-full bg-slate-50 border text-slate-900 text-xs rounded-xl p-1.5 sm:p-2 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums ${
+                  isShortCourse ? 'border-amber-300 font-bold bg-amber-50/40 text-amber-900' : 'border-slate-300'
+                }`}
               />
             </div>
             <div>
               <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
-                อัตรา/หัว (บาท) <span className="text-red-500">*</span>
+                {isShortCourse ? 'อัตรา/คน/ชม. (บ.)' : 'อัตรา/หัว (บาท)'} <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -403,9 +448,11 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           {/* 3. Reactive Calculation Summary Box */}
           <div className="p-3.5 bg-gradient-to-br from-blue-50/80 via-slate-50 to-indigo-50/50 rounded-2xl border border-blue-200/90 shadow-2xs">
             <div className="flex justify-between items-center text-[11px] text-slate-500 mb-1">
-              <span>สูตรงบตั้งต้น (Base Budget) :</span>
+              <span>สูตรงบตั้งต้น ({CALCULATION_TYPE_LABELS[calculationType]}) :</span>
               <span className="font-semibold text-slate-700 font-mono">
-                {studentNum} คน × {rateNum.toLocaleString()} บ.
+                {isShortCourse
+                  ? `${studentNum} คน × ${practiceNum} ชม. × ${rateNum.toLocaleString()} บ.`
+                  : `${studentNum} คน × ${rateNum.toLocaleString()} บ.`}
               </span>
             </div>
             <div className="flex justify-between items-baseline mb-2 pb-2 border-b border-blue-200/60">

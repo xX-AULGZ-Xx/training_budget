@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Allocation, Department, ShareItem } from '../types';
+import { Allocation, Department, ShareItem, CalculationType, CALCULATION_TYPE_LABELS } from '../types';
 import { X, Save, Plus, Trash2, AlertCircle, CheckCircle2, Edit3 } from 'lucide-react';
 import { showSuccessToast, showErrorAlert } from '../utils/alerts';
 
@@ -20,6 +20,7 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
   onClose,
   onSuccess
 }) => {
+  const [calculationType, setCalculationType] = useState<CalculationType>('REGULAR');
   const [studentCount, setStudentCount] = useState<number>(0);
   const [practiceHours, setPracticeHours] = useState<number>(0);
   const [ratePerHead, setRatePerHead] = useState<number>(350);
@@ -31,6 +32,7 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
 
   useEffect(() => {
     if (allocation) {
+      setCalculationType(allocation.calculation_type || 'REGULAR');
       setStudentCount(allocation.student_count);
       setPracticeHours(allocation.total_practice_hours);
       setRatePerHead(allocation.rate_per_head);
@@ -49,8 +51,13 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
 
   if (!isOpen || !allocation) return null;
 
+  const isShortCourse = calculationType === 'SHORT_COURSE';
+
   // Reactive calculations
-  const baseBudget = Math.max(0, (studentCount || 0) * (ratePerHead || 0));
+  const baseBudget = Math.max(
+    0,
+    isShortCourse ? (studentCount || 0) * (practiceHours || 0) * (ratePerHead || 0) : (studentCount || 0) * (ratePerHead || 0)
+  );
   const totalShares = shares.reduce((acc, curr) => acc + (Number(curr.share_amount) || 0), 0);
   const remainingBudget = baseBudget - totalShares;
   const isOverBudget = totalShares > baseBudget;
@@ -83,6 +90,10 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isReadOnly) return;
+    if (isShortCourse && (!practiceHours || practiceHours <= 0)) {
+      setErrorMessage('กรุณาระบุจำนวนชั่วโมงฝึกอบรม (ชม.) สำหรับหลักสูตรระยะสั้น');
+      return;
+    }
     if (isOverBudget) {
       setErrorMessage('ยอดปันส่วนให้แผนกสอนช่วย เกินกว่างบตั้งต้น');
       return;
@@ -96,6 +107,7 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          calculation_type: calculationType,
           student_count: Number(studentCount),
           total_practice_hours: Number(practiceHours),
           rate_per_head: Number(ratePerHead),
@@ -161,11 +173,37 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
             </div>
           )}
 
+          {/* Calculation Type Dropdown */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-slate-700 flex items-center space-x-1.5">
+                <span>ประเภทการคำนวณงบ</span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/50">
+                  {CALCULATION_TYPE_LABELS[calculationType]}
+                </span>
+              </label>
+              <span className="text-[10px] text-slate-500 font-normal">
+                {isShortCourse ? 'คน × ชม. × อัตรา/คน/ชม.' : 'คน × อัตรา/หัว'}
+              </span>
+            </div>
+            <select
+              value={calculationType}
+              onChange={(e) => setCalculationType(e.target.value as CalculationType)}
+              disabled={isReadOnly}
+              className="w-full bg-slate-50 border border-indigo-200 text-slate-900 text-sm rounded-lg p-2.5 font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
+            >
+              <option value="REGULAR">ภาคปกติ (Regular)</option>
+              <option value="SPECIAL_SUPPLEMENTARY">ภาคสมทบ (Special Supplementary)</option>
+              <option value="DUAL_EDUCATION">ภาคทวิศึกษา (Dual Education)</option>
+              <option value="SHORT_COURSE">ระยะสั้น (Short-term Course)</option>
+            </select>
+          </div>
+
           {/* Numeric Inputs Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                จำนวน นร./นศ. (คน) <span className="text-red-500">*</span>
+                {isShortCourse ? 'จำนวนผู้เรียน (คน)' : 'จำนวน นร./นศ. (คน)'} <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -178,7 +216,7 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                ชั่วโมงฝึกปฏิบัติ (ชม.)
+                {isShortCourse ? 'ชั่วโมงฝึกอบรม (ชม.)' : 'ชั่วโมงฝึกปฏิบัติ (ชม.)'} {isShortCourse && <span className="text-red-500">*</span>}
               </label>
               <input
                 type="number"
@@ -187,12 +225,14 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
                 value={practiceHours}
                 onChange={(e) => setPracticeHours(parseFloat(e.target.value) || 0)}
                 disabled={isReadOnly}
-                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className={`w-full bg-slate-50 border text-slate-900 text-sm rounded-lg p-2.5 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                  isShortCourse ? 'border-amber-300 font-bold bg-amber-50/40 text-amber-900' : 'border-slate-300'
+                }`}
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                อัตราต่อหัว (บาท/คน)
+                {isShortCourse ? 'อัตรา/คน/ชม. (บ.)' : 'อัตราต่อหัว (บาท/คน)'} <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -209,9 +249,11 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
           {/* Reactive Recalculation Summary Box */}
           <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-xl border border-blue-200 shadow-inner">
             <div className="flex justify-between items-center text-xs text-slate-600 mb-1">
-              <span>งบตั้งต้นกลุ่มเรียน (Base Budget) :</span>
-              <span className="font-semibold text-slate-800">
-                {studentCount} คน × {ratePerHead.toLocaleString()} บาท
+              <span>งบตั้งต้นกลุ่มเรียน ({CALCULATION_TYPE_LABELS[calculationType]}) :</span>
+              <span className="font-semibold text-slate-800 font-mono">
+                {isShortCourse
+                  ? `${studentCount} คน × ${practiceHours} ชม. × ${ratePerHead.toLocaleString()} บาท`
+                  : `${studentCount} คน × ${ratePerHead.toLocaleString()} บาท`}
               </span>
             </div>
             <div className="flex justify-between items-baseline mb-2">

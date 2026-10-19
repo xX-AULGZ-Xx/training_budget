@@ -4,7 +4,8 @@ import {
   LevelSummary,
   SummaryKPIs,
   Department,
-  Allocation
+  Allocation,
+  CALCULATION_TYPE_LABELS
 } from '../types';
 import {
   Users,
@@ -445,7 +446,14 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                     {allocations.map((alloc) => (
                       <tr key={alloc.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-2.5 sm:py-3 px-3 sm:px-4">
-                          <div className="font-bold text-slate-900">{alloc.group_name}</div>
+                          <div className="flex items-center space-x-1.5 flex-wrap">
+                            <span className="font-bold text-slate-900">{alloc.group_name}</span>
+                            {alloc.calculation_type && alloc.calculation_type !== 'REGULAR' && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {CALCULATION_TYPE_LABELS[alloc.calculation_type]}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[11px] text-slate-500 font-medium">{alloc.department_name}</div>
                         </td>
                         <td className="py-2.5 sm:py-3 px-2.5 text-center">
