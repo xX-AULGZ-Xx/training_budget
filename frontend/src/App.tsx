@@ -44,7 +44,7 @@ export function App() {
   });
 
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
-  const [calculationType, setCalculationType] = useState<CalculationType>('REGULAR');
+  const [calculationType, setCalculationType] = useState<CalculationType | 'ALL'>('ALL');
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
   const [editingAllocation, setEditingAllocation] = useState<Allocation | null>(null);
@@ -109,14 +109,15 @@ export function App() {
   // 2. Load Term-specific data: Allocations, Summary, Logs (Filtered by Term, Department & Calculation Type)
   const loadTermData = useCallback(async () => {
     if (!selectedTerm) return;
+    const calcParam = calculationType === 'ALL' ? 'all' : calculationType;
     try {
       setLoading(true);
       const [allocRes, sumRes, logsRes] = await Promise.all([
         fetch(
-          `/api/v1/allocations?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}&calculation_type=${calculationType}`
+          `/api/v1/allocations?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}&calculation_type=${calcParam}`
         ).then((r) => r.json()),
         fetch(
-          `/api/v1/summary?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}&calculation_type=${calculationType}`
+          `/api/v1/summary?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}&calculation_type=${calcParam}`
         ).then((r) => r.json()),
         fetch(`/api/v1/summary/logs?term_id=${selectedTerm.id}`).then((r) => r.json())
       ]);
@@ -213,7 +214,8 @@ export function App() {
   // PDF Report Download
   const handleDownloadPdf = () => {
     if (!selectedTerm) return;
-    const url = `/api/v1/reports/pdf?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}&calculation_type=${calculationType}`;
+    const calcParam = calculationType === 'ALL' ? 'all' : calculationType;
+    const url = `/api/v1/reports/pdf?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}&calculation_type=${calcParam}`;
     window.open(url, '_blank');
   };
 

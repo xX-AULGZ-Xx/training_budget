@@ -85,6 +85,10 @@ export interface DepartmentSummary {
   net_voc: number;
   net_high_voc: number;
   net_prison: number;
+  net_regular?: number;
+  net_special_supplementary?: number;
+  net_dual_education?: number;
+  net_short_course?: number;
 }
 
 export interface LevelSummary {

@@ -17,7 +17,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
   const calcCondition = hasCalcType ? ' AND ba.calculation_type = ?' : '';
 
   try {
-    // 1. Department Summary Query (Reconciliation + Level Breakdown)
+    // 1. Department Summary Query (Reconciliation + Level & Calculation Type Breakdown)
     let deptQuery = `
       SELECT 
           d.id AS department_id,
@@ -51,7 +51,19 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
            + COALESCE(trans.trans_high_voc, 0.00)) AS net_high_voc,
           (COALESCE(base.base_prison, 0.00)
            - COALESCE(deduct.deduct_prison, 0.00) 
-           + COALESCE(trans.trans_prison, 0.00)) AS net_prison
+           + COALESCE(trans.trans_prison, 0.00)) AS net_prison,
+          (COALESCE(base.base_regular, 0.00)
+           - COALESCE(deduct.deduct_regular, 0.00) 
+           + COALESCE(trans.trans_regular, 0.00)) AS net_regular,
+          (COALESCE(base.base_special_supplementary, 0.00)
+           - COALESCE(deduct.deduct_special_supplementary, 0.00) 
+           + COALESCE(trans.trans_special_supplementary, 0.00)) AS net_special_supplementary,
+          (COALESCE(base.base_dual_education, 0.00)
+           - COALESCE(deduct.deduct_dual_education, 0.00) 
+           + COALESCE(trans.trans_dual_education, 0.00)) AS net_dual_education,
+          (COALESCE(base.base_short_course, 0.00)
+           - COALESCE(deduct.deduct_short_course, 0.00) 
+           + COALESCE(trans.trans_short_course, 0.00)) AS net_short_course
       FROM departments d
       LEFT JOIN (
           SELECT 
@@ -63,7 +75,11 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
             SUM(ba.base_budget) AS total_base_budget,
             SUM(CASE WHEN cg.education_level_id = 1 THEN ba.base_budget ELSE 0 END) AS base_voc,
             SUM(CASE WHEN cg.education_level_id = 2 THEN ba.base_budget ELSE 0 END) AS base_high_voc,
-            SUM(CASE WHEN cg.education_level_id = 3 THEN ba.base_budget ELSE 0 END) AS base_prison
+            SUM(CASE WHEN cg.education_level_id = 3 THEN ba.base_budget ELSE 0 END) AS base_prison,
+            SUM(CASE WHEN ba.calculation_type = 'REGULAR' OR ba.calculation_type IS NULL THEN ba.base_budget ELSE 0 END) AS base_regular,
+            SUM(CASE WHEN ba.calculation_type = 'SPECIAL_SUPPLEMENTARY' THEN ba.base_budget ELSE 0 END) AS base_special_supplementary,
+            SUM(CASE WHEN ba.calculation_type = 'DUAL_EDUCATION' THEN ba.base_budget ELSE 0 END) AS base_dual_education,
+            SUM(CASE WHEN ba.calculation_type = 'SHORT_COURSE' THEN ba.base_budget ELSE 0 END) AS base_short_course
           FROM budget_allocations ba
           JOIN class_groups cg ON ba.class_group_id = cg.id
           WHERE ba.academic_term_id = ? ${calcCondition}
@@ -75,7 +91,11 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
             SUM(s.share_amount) AS total_deducted,
             SUM(CASE WHEN cg.education_level_id = 1 THEN s.share_amount ELSE 0 END) AS deduct_voc,
             SUM(CASE WHEN cg.education_level_id = 2 THEN s.share_amount ELSE 0 END) AS deduct_high_voc,
-            SUM(CASE WHEN cg.education_level_id = 3 THEN s.share_amount ELSE 0 END) AS deduct_prison
+            SUM(CASE WHEN cg.education_level_id = 3 THEN s.share_amount ELSE 0 END) AS deduct_prison,
+            SUM(CASE WHEN ba.calculation_type = 'REGULAR' OR ba.calculation_type IS NULL THEN s.share_amount ELSE 0 END) AS deduct_regular,
+            SUM(CASE WHEN ba.calculation_type = 'SPECIAL_SUPPLEMENTARY' THEN s.share_amount ELSE 0 END) AS deduct_special_supplementary,
+            SUM(CASE WHEN ba.calculation_type = 'DUAL_EDUCATION' THEN s.share_amount ELSE 0 END) AS deduct_dual_education,
+            SUM(CASE WHEN ba.calculation_type = 'SHORT_COURSE' THEN s.share_amount ELSE 0 END) AS deduct_short_course
           FROM inter_department_shares s
           JOIN budget_allocations ba ON s.allocation_id = ba.id
           JOIN class_groups cg ON ba.class_group_id = cg.id
@@ -88,7 +108,11 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
             SUM(s.share_amount) AS total_transferred,
             SUM(CASE WHEN cg.education_level_id = 1 THEN s.share_amount ELSE 0 END) AS trans_voc,
             SUM(CASE WHEN cg.education_level_id = 2 THEN s.share_amount ELSE 0 END) AS trans_high_voc,
-            SUM(CASE WHEN cg.education_level_id = 3 THEN s.share_amount ELSE 0 END) AS trans_prison
+            SUM(CASE WHEN cg.education_level_id = 3 THEN s.share_amount ELSE 0 END) AS trans_prison,
+            SUM(CASE WHEN ba.calculation_type = 'REGULAR' OR ba.calculation_type IS NULL THEN s.share_amount ELSE 0 END) AS trans_regular,
+            SUM(CASE WHEN ba.calculation_type = 'SPECIAL_SUPPLEMENTARY' THEN s.share_amount ELSE 0 END) AS trans_special_supplementary,
+            SUM(CASE WHEN ba.calculation_type = 'DUAL_EDUCATION' THEN s.share_amount ELSE 0 END) AS trans_dual_education,
+            SUM(CASE WHEN ba.calculation_type = 'SHORT_COURSE' THEN s.share_amount ELSE 0 END) AS trans_short_course
           FROM inter_department_shares s
           JOIN budget_allocations ba ON s.allocation_id = ba.id
           JOIN class_groups cg ON ba.class_group_id = cg.id

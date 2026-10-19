@@ -10,7 +10,7 @@ interface AllocationFormProps {
   classGroups: ClassGroup[];
   educationLevels?: EducationLevel[];
   allocations: Allocation[];
-  calculationType: CalculationType;
+  calculationType: CalculationType | 'ALL';
   onSuccess: () => void;
 }
 
@@ -24,6 +24,17 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   calculationType,
   onSuccess
 }) => {
+  // ประเภทการคำนวณที่กำลังบันทึก (ผูกตามแถบด้านบน หรือเลือกเองเมื่อแถบด้านบนเป็น ALL)
+  const [selectedCalcType, setSelectedCalcType] = useState<CalculationType>(
+    calculationType === 'ALL' ? 'REGULAR' : calculationType
+  );
+
+  useEffect(() => {
+    if (calculationType !== 'ALL') {
+      setSelectedCalcType(calculationType);
+    }
+  }, [calculationType]);
+
   // Cascaded Selection States (Matching user design: แผนกวิชา -> [ระดับ] [เลือกกลุ่ม])
   const [selectedDeptId, setSelectedDeptId] = useState<number | ''>('');
   const [selectedLevelId, setSelectedLevelId] = useState<number | 'all'>('all');
@@ -50,6 +61,9 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
     }
     const existing = allocations.find((a) => a.class_group_id === Number(selectedGroupId));
     if (existing) {
+      if (existing.calculation_type) {
+        setSelectedCalcType(existing.calculation_type);
+      }
       setStudentCount(existing.student_count);
       setPracticeHours(existing.total_practice_hours);
       setRatePerHead(existing.rate_per_head);
@@ -118,7 +132,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   const practiceNum = typeof practiceHours === 'number' ? practiceHours : (parseFloat(practiceHours as any) || 0);
   const rateNum = typeof ratePerHead === 'number' ? ratePerHead : (parseFloat(ratePerHead as any) || 0);
 
-  const isShortCourse = calculationType === 'SHORT_COURSE';
+  const isShortCourse = selectedCalcType === 'SHORT_COURSE';
 
   // Reactive Base Budget Calculation
   // สำหรับหลักสูตรระยะสั้น: ผู้เรียน (คน) × ชั่วโมงฝึกอบรม (ชม.) × อัตรา/คน/ชม. (บาท)
@@ -204,7 +218,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
         body: JSON.stringify({
           term_id: termId,
           class_group_id: Number(selectedGroupId),
-          calculation_type: calculationType,
+          calculation_type: selectedCalcType,
           student_count: studentNum,
           total_practice_hours: practiceNum,
           rate_per_head: rateNum,
@@ -290,18 +304,45 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
 
           {/* 1. Cascaded Department & Class Group Selection */}
           <div className="space-y-2.5 sm:space-y-3">
-            {/* 1.1 ป้ายแสดงประเภทการคำนวณงบ (เปลี่ยนได้ที่แถบเมนูด้านบน) */}
-            <div className="p-2 sm:p-2.5 bg-indigo-50/70 border border-indigo-200/80 rounded-xl flex items-center justify-between">
-              <div className="flex items-center space-x-1.5 sm:space-x-2">
-                <span className="text-[11px] font-bold text-slate-700">ประเภทงบ:</span>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-indigo-600 text-white shadow-2xs">
-                  {CALCULATION_TYPE_LABELS[calculationType]}
+            {/* 1.1 ประเภทการคำนวณงบ */}
+            {calculationType === 'ALL' ? (
+              <div>
+                <div className="flex items-center justify-between mb-1 sm:mb-1.5">
+                  <label className="text-xs font-bold text-indigo-600 flex items-center space-x-1.5">
+                    <span>ประเภทการคำนวณงบ</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/50">
+                      {CALCULATION_TYPE_LABELS[selectedCalcType]}
+                    </span>
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    {isShortCourse ? 'สูตร: คน × ชม. × อัตรา/คน/ชม.' : 'สูตร: คน × อัตรา/หัว'}
+                  </span>
+                </div>
+                <select
+                  value={selectedCalcType}
+                  onChange={(e) => setSelectedCalcType(e.target.value as CalculationType)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50/80 border border-indigo-200 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors cursor-pointer"
+                >
+                  <option value="REGULAR">ภาคปกติ (Regular)</option>
+                  <option value="SPECIAL_SUPPLEMENTARY">ภาคสมทบ (Special Supplementary)</option>
+                  <option value="DUAL_EDUCATION">ภาคทวิศึกษา (Dual Education)</option>
+                  <option value="SHORT_COURSE">ระยะสั้น (Short-term Course)</option>
+                </select>
+              </div>
+            ) : (
+              <div className="p-2 sm:p-2.5 bg-indigo-50/70 border border-indigo-200/80 rounded-xl flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 sm:space-x-2">
+                  <span className="text-[11px] font-bold text-slate-700">ประเภทงบ:</span>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-indigo-600 text-white shadow-2xs">
+                    {CALCULATION_TYPE_LABELS[selectedCalcType]}
+                  </span>
+                </div>
+                <span className="text-[10px] text-indigo-700 font-medium">
+                  {isShortCourse ? 'สูตร: คน × ชม. × อัตรา/คน/ชม.' : 'สูตร: คน × อัตรา/หัว'}
                 </span>
               </div>
-              <span className="text-[10px] text-indigo-700 font-medium">
-                {isShortCourse ? 'สูตร: คน × ชม. × อัตรา/คน/ชม.' : 'สูตร: คน × อัตรา/หัว'}
-              </span>
-            </div>
+            )}
 
             {/* 1.2 แผนกวิชา */}
             <div>
@@ -429,7 +470,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           {/* 3. Reactive Calculation Summary Box */}
           <div className="p-3.5 bg-gradient-to-br from-blue-50/80 via-slate-50 to-indigo-50/50 rounded-2xl border border-blue-200/90 shadow-2xs">
             <div className="flex justify-between items-center text-[11px] text-slate-500 mb-1">
-              <span>สูตรงบตั้งต้น ({CALCULATION_TYPE_LABELS[calculationType]}) :</span>
+              <span>สูตรงบตั้งต้น ({CALCULATION_TYPE_LABELS[selectedCalcType]}) :</span>
               <span className="font-semibold text-slate-700 font-mono">
                 {isShortCourse
                   ? `${studentNum} คน × ${practiceNum} ชม. × ${rateNum.toLocaleString()} บ.`

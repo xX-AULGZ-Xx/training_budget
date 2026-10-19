@@ -28,8 +28,8 @@ interface HeaderProps {
   onRefresh: () => void;
   loading: boolean;
   systemSettings?: SystemSettings | null;
-  calculationType: CalculationType;
-  onChangeCalculationType: (type: CalculationType) => void;
+  calculationType: CalculationType | 'ALL';
+  onChangeCalculationType: (type: CalculationType | 'ALL') => void;
 }
 
 const VIEW_OPTIONS = [
@@ -143,10 +143,11 @@ export const Header: React.FC<HeaderProps> = ({
               <Calculator className="w-3.5 h-3.5 text-indigo-600 ml-1.5 sm:ml-2 mr-1 shrink-0" />
               <select
                 value={calculationType}
-                onChange={(e) => onChangeCalculationType(e.target.value as CalculationType)}
+                onChange={(e) => onChangeCalculationType(e.target.value as CalculationType | 'ALL')}
                 className="w-full sm:w-auto bg-transparent text-[11px] sm:text-xs font-bold text-indigo-900 py-1 sm:py-1.5 pr-2 pl-0.5 focus:outline-none cursor-pointer truncate"
                 title="เลือกประเภทการคำนวณงบประมาณและแยกดูตาราง"
               >
+                <option value="ALL">ทุกประเภทการคำนวณ (All Types)</option>
                 <option value="REGULAR">ภาคปกติ (Regular)</option>
                 <option value="SPECIAL_SUPPLEMENTARY">ภาคสมทบ (Special Supplementary)</option>
                 <option value="DUAL_EDUCATION">ภาคทวิศึกษา (Dual Education)</option>

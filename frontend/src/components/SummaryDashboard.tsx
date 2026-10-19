@@ -30,7 +30,7 @@ interface SummaryDashboardProps {
   allocations: Allocation[];
   selectedDepartmentId: string;
   onSelectDepartmentId: (deptId: string) => void;
-  calculationType: CalculationType;
+  calculationType: CalculationType | 'ALL';
   onEditAllocation: (allocation: Allocation) => void;
   onDeleteAllocation: (id: number) => void;
   isReadOnly: boolean;
@@ -198,14 +198,16 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
-                    ตารางสรุปผลต่างสุทธิรายแผนก (แยกจำนวนนักเรียน และงบสุทธิ ปวช./ปวส./เรือนจำ)
+                    ตารางสรุปผลต่างสุทธิรายแผนก (แยกงบสุทธิตามประเภทการคำนวณ)
                   </h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                    {CALCULATION_TYPE_LABELS[calculationType]}
-                  </span>
+                  {calculationType in CALCULATION_TYPE_LABELS && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      {CALCULATION_TYPE_LABELS[calculationType as CalculationType]}
+                    </span>
+                  )}
                 </div>
                 <p className="text-[10px] sm:text-[11px] text-slate-500">
-                  แสดงการปันส่วนงบประมาณค่าวัสดุฝึก รายละเอียดนักเรียน และงบสุทธิแยกตามระดับการศึกษา ({CALCULATION_TYPE_LABELS[calculationType]})
+                  แสดงการปันส่วนงบประมาณค่าวัสดุฝึก รายละเอียดนักเรียน และงบสุทธิแยกตามประเภทการคำนวณ (ภาคปกติ / ภาคสมทบ / ภาคทวิศึกษา / ระยะสั้น)
                 </p>
               </div>
               <div className="flex items-center justify-between sm:justify-end gap-2">
@@ -238,8 +240,8 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                     <th colSpan={3} className="py-2 px-3 text-center font-bold border-r border-slate-300 border-b border-slate-300 bg-blue-50/70 text-blue-900 whitespace-nowrap">
                       จำนวนนักเรียนรายระดับ
                     </th>
-                    <th colSpan={3} className="py-2 px-3 text-center font-bold border-r border-slate-300 border-b border-slate-300 bg-emerald-50/70 text-emerald-900 whitespace-nowrap">
-                      งบประมาณสุทธิแยกตามระดับ
+                    <th colSpan={4} className="py-2 px-3 text-center font-bold border-r border-slate-300 border-b border-slate-300 bg-emerald-50/70 text-emerald-900 whitespace-nowrap">
+                      งบประมาณสุทธิแยกตามประเภทการคำนวณ
                     </th>
                     <th rowSpan={2} className="py-3 px-4 text-right font-extrabold bg-blue-100/70 text-blue-950 border-l border-blue-200 min-w-[105px] whitespace-nowrap">
                       งบสุทธิรวม
@@ -250,10 +252,11 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                     <th className="py-2 px-3 text-right border-r border-slate-300 bg-blue-50/40 text-blue-800 min-w-[55px]">ปวช.</th>
                     <th className="py-2 px-3 text-right border-r border-slate-300 bg-blue-50/40 text-blue-800 min-w-[55px]">ปวส.</th>
                     <th className="py-2 px-3 text-right border-r border-slate-300 bg-blue-50/40 text-blue-800 min-w-[55px]">เรือนจำ</th>
-                    {/* Net budget by level subheaders */}
-                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[80px]">ปวช.</th>
-                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[80px]">ปวส.</th>
-                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[80px]">เรือนจำ</th>
+                    {/* Net budget by calculation type subheaders */}
+                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ภาคปกติ</th>
+                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ภาคสมทบ</th>
+                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ภาคทวิศึกษา</th>
+                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ระยะสั้น</th>
                   </tr>
                 </thead>
 
@@ -269,9 +272,10 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                     const sHighVoc = Number(dept.students_high_voc || 0);
                     const sPrison = Number(dept.students_prison || 0);
 
-                    const nVoc = Number(dept.net_voc || 0);
-                    const nHighVoc = Number(dept.net_high_voc || 0);
-                    const nPrison = Number(dept.net_prison || 0);
+                    const nRegular = Number(dept.net_regular || 0);
+                    const nSpecial = Number(dept.net_special_supplementary || 0);
+                    const nDual = Number(dept.net_dual_education || 0);
+                    const nShort = Number(dept.net_short_course || 0);
 
                     const isEven = index % 2 === 0;
 
@@ -323,24 +327,31 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                           {sPrison > 0 ? sPrison.toLocaleString() : <span className="text-slate-400 font-normal">0</span>}
                         </td>
 
-                        {/* Net budget columns */}
+                        {/* Net budget by calculation type columns */}
                         <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
-                          {nVoc > 0 ? (
-                            <span className="text-slate-900">{nVoc.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+                          {nRegular > 0 ? (
+                            <span className="text-slate-900">{nRegular.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
                           ) : (
                             <span className="text-slate-400 font-normal">0</span>
                           )}
                         </td>
                         <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
-                          {nHighVoc > 0 ? (
-                            <span className="text-slate-900">{nHighVoc.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+                          {nSpecial > 0 ? (
+                            <span className="text-slate-900">{nSpecial.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
                           ) : (
                             <span className="text-slate-400 font-normal">0</span>
                           )}
                         </td>
                         <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
-                          {nPrison > 0 ? (
-                            <span className="text-slate-900">{nPrison.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+                          {nDual > 0 ? (
+                            <span className="text-slate-900">{nDual.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">0</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
+                          {nShort > 0 ? (
+                            <span className="text-slate-900">{nShort.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
                           ) : (
                             <span className="text-slate-400 font-normal">0</span>
                           )}
@@ -398,17 +409,22 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                       </td>
                       <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
                         {departments
-                          .reduce((sum, d) => sum + Number(d.net_voc || 0), 0)
+                          .reduce((sum, d) => sum + Number(d.net_regular || 0), 0)
                           .toLocaleString('en-US', { maximumFractionDigits: 2 })}
                       </td>
                       <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
                         {departments
-                          .reduce((sum, d) => sum + Number(d.net_high_voc || 0), 0)
+                          .reduce((sum, d) => sum + Number(d.net_special_supplementary || 0), 0)
                           .toLocaleString('en-US', { maximumFractionDigits: 2 })}
                       </td>
                       <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
                         {departments
-                          .reduce((sum, d) => sum + Number(d.net_prison || 0), 0)
+                          .reduce((sum, d) => sum + Number(d.net_dual_education || 0), 0)
+                          .toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
+                        {departments
+                          .reduce((sum, d) => sum + Number(d.net_short_course || 0), 0)
                           .toLocaleString('en-US', { maximumFractionDigits: 2 })}
                       </td>
                       <td className="py-3 px-4 text-right font-black text-blue-900 bg-blue-100/90 border-l border-blue-300 text-sm tabular-nums">
