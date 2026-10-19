@@ -173,14 +173,14 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
           ba.student_count,
           ba.rate_per_head,
           ba.base_budget,
-          COALESCE(d.code, dept_cg.code, '') AS department_code,
-          COALESCE(d.name, dept_cg.name, 'ไม่ระบุแผนก') AS department_name,
-          cg.name AS group_name,
-          cg.level AS education_level
+          COALESCE(d.code, '') AS department_code,
+          COALESCE(d.name, 'ไม่ระบุแผนก') AS department_name,
+          COALESCE(cg.group_name, ba.batch_name, ba.course_name, ba.school_name, '-') AS group_name,
+          COALESCE(el.name, '-') AS education_level
       FROM budget_allocations ba
-      LEFT JOIN departments d ON ba.department_id = d.id
       LEFT JOIN class_groups cg ON ba.class_group_id = cg.id
-      LEFT JOIN departments dept_cg ON cg.department_id = dept_cg.id
+      LEFT JOIN departments d ON COALESCE(ba.department_id, cg.department_id) = d.id
+      LEFT JOIN education_levels el ON cg.education_level_id = el.id
       WHERE ba.academic_term_id = ? ${calcCondition}
     `;
     const allocParams: any[] = [term_id];
@@ -188,10 +188,10 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
       allocParams.push(calculation_type);
     }
     if (department_id && department_id !== 'all') {
-      allocQuery += ' AND (ba.department_id = ? OR cg.department_id = ?)';
-      allocParams.push(department_id, department_id);
+      allocQuery += ' AND COALESCE(ba.department_id, cg.department_id) = ?';
+      allocParams.push(department_id);
     }
-    allocQuery += ' ORDER BY COALESCE(d.name, dept_cg.name) ASC, ba.id ASC';
+    allocQuery += ' ORDER BY d.id ASC, ba.id ASC';
 
     const [allocations] = await pool.query<RowDataPacket[]>(allocQuery, allocParams);
 
