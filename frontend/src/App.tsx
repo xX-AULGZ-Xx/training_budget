@@ -234,8 +234,6 @@ export function App() {
         onRefresh={loadTermData}
         loading={loading}
         systemSettings={systemSettings}
-        calculationType={calculationType}
-        onChangeCalculationType={setCalculationType}
       />
 
       {/* Main Content Area */}

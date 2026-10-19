@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AcademicTerm, SystemSettings, CalculationType } from '../types';
+import { AcademicTerm, SystemSettings } from '../types';
 import {
   School,
   Calendar,
@@ -12,8 +12,7 @@ import {
   Settings,
   Rocket,
   ChevronDown,
-  Check,
-  Calculator
+  Check
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -28,8 +27,6 @@ interface HeaderProps {
   onRefresh: () => void;
   loading: boolean;
   systemSettings?: SystemSettings | null;
-  calculationType: CalculationType | 'ALL';
-  onChangeCalculationType: (type: CalculationType | 'ALL') => void;
 }
 
 const VIEW_OPTIONS = [
@@ -67,9 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
   onDownloadPdf,
   onRefresh,
   loading,
-  systemSettings,
-  calculationType,
-  onChangeCalculationType
+  systemSettings
 }) => {
   const isReadOnly = selectedTerm?.status !== 'OPEN';
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -137,24 +132,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right: Calculation Type, Term Selector & Global Actions */}
         <div className="w-full xl:w-auto flex flex-wrap items-center justify-between sm:justify-end gap-1.5 sm:gap-2 shrink-0">
-          {/* Calculation Type Selector (ย้ายมาไว้ข้างๆ ภาคเรียนตามตำแหน่งที่ผู้ใช้ระบุ) */}
-          {currentView === 'budget' && (
-            <div className="flex-1 sm:flex-initial flex items-center bg-indigo-50/90 rounded-lg p-0.5 border border-indigo-200/90 min-w-0 max-w-full sm:max-w-xs shadow-2xs">
-              <Calculator className="w-3.5 h-3.5 text-indigo-600 ml-1.5 sm:ml-2 mr-1 shrink-0" />
-              <select
-                value={calculationType}
-                onChange={(e) => onChangeCalculationType(e.target.value as CalculationType | 'ALL')}
-                className="w-full sm:w-auto bg-transparent text-[11px] sm:text-xs font-bold text-indigo-900 py-1 sm:py-1.5 pr-2 pl-0.5 focus:outline-none cursor-pointer truncate"
-                title="เลือกประเภทการคำนวณงบประมาณและแยกดูตาราง"
-              >
-                <option value="ALL">ทุกประเภทการคำนวณ (All Types)</option>
-                <option value="REGULAR">ภาคปกติ (Regular)</option>
-                <option value="SPECIAL_SUPPLEMENTARY">ภาคสมทบ (Special Supplementary)</option>
-                <option value="DUAL_EDUCATION">ภาคทวิศึกษา (Dual Education)</option>
-                <option value="SHORT_COURSE">ระยะสั้น (Short-term Course)</option>
-              </select>
-            </div>
-          )}
 
           {/* Term Selector */}
           <div className="flex-1 sm:flex-initial flex items-center bg-slate-50 rounded-lg p-0.5 border border-slate-200 min-w-0 max-w-full sm:max-w-xs">
