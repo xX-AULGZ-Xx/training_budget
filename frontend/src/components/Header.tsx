@@ -81,9 +81,6 @@ export const Header: React.FC<HeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentViewObj = VIEW_OPTIONS.find((v) => v.id === currentView) || VIEW_OPTIONS[0];
-  const CurrentViewIcon = currentViewObj.icon;
-
   const handleSelectView = (view: 'budget' | 'settings' | 'startup') => {
     onChangeView(view);
     setIsDropdownOpen(false);
@@ -197,25 +194,22 @@ export const Header: React.FC<HeaderProps> = ({
               <span>พิมพ์ PDF</span>
             </button>
 
-            {/* View Switcher Dropdown (ย้ายจากตรงกลางมาด้านขวา) */}
+            {/* View Switcher Dropdown (ปุ่มเฟือง: ตั้งค่า) */}
             <div className="relative shrink-0" ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className={`inline-flex items-center space-x-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
-                  isDropdownOpen
+                  isDropdownOpen || currentView !== 'budget'
                     ? 'bg-blue-50 text-blue-700 border-blue-300 ring-2 ring-blue-100'
                     : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
                 }`}
-                title="เลือกหน้าการทำงาน / เมนูระบบ"
+                title="ตั้งค่าและเมนูระบบ"
               >
-                <CurrentViewIcon className={`w-3.5 h-3.5 ${
-                  currentView === 'budget' ? 'text-blue-600' : currentView === 'settings' ? 'text-indigo-600' : 'text-blue-500'
+                <Settings className={`w-3.5 h-3.5 ${
+                  isDropdownOpen || currentView !== 'budget' ? 'text-blue-600' : 'text-slate-600'
                 }`} />
-                <span>
-                  <span className="hidden sm:inline">{currentViewObj.label}</span>
-                  <span className="sm:hidden">{currentViewObj.shortLabel}</span>
-                </span>
+                <span>ตั้งค่า</span>
                 <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
               </button>
 
@@ -223,8 +217,8 @@ export const Header: React.FC<HeaderProps> = ({
               {isDropdownOpen && (
                 <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                    <span>เมนูการทำงานหลัก</span>
-                    <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">3 หน้า</span>
+                    <span>เมนูและตั้งค่าระบบ</span>
+                    <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">3 เมนู</span>
                   </div>
                   <div className="p-1 space-y-0.5">
                     {VIEW_OPTIONS.map((opt) => {
