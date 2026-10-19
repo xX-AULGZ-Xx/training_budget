@@ -70,6 +70,20 @@ export const Header: React.FC<HeaderProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // ตรวจสอบว่าระบบเคยทำ Start Up Setting แล้วหรือยัง หากทำแล้วให้ซ่อน Start Up Setting
+  const isStartupCompleted = Boolean(
+    systemSettings?.startup_completed === '1' ||
+    systemSettings?.startup_completed === 'true' ||
+    (terms && terms.length > 0)
+  );
+
+  const visibleViewOptions = VIEW_OPTIONS.filter((opt) => {
+    if (opt.id === 'startup') {
+      return !isStartupCompleted;
+    }
+    return true;
+  });
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -218,10 +232,12 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                     <span>เมนูและตั้งค่าระบบ</span>
-                    <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">3 เมนู</span>
+                    <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                      {visibleViewOptions.length} เมนู
+                    </span>
                   </div>
                   <div className="p-1 space-y-0.5">
-                    {VIEW_OPTIONS.map((opt) => {
+                    {visibleViewOptions.map((opt) => {
                       const Icon = opt.icon;
                       const isSelected = currentView === opt.id;
                       return (

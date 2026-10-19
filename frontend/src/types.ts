@@ -116,6 +116,7 @@ export interface SystemSettings {
   default_rate_prison: string;
   default_practice_hours: string;
   fiscal_year_start_month: string;
+  startup_completed?: string;
   server_deployment_mode?: 'localhost' | 'lan' | 'cloud';
   server_domain_or_ip?: string;
   server_frontend_port?: string;
