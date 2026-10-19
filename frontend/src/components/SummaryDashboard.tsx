@@ -53,11 +53,9 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'reconciliation' | 'allocations' | 'levels'>('reconciliation');
 
-  // เมื่อเลือกประเภทการคำนวณ ให้สลับมาแสดงตารางรายการจัดสรรตามประเภทนั้นอัตโนมัติ
+  // เมื่อเลือกประเภทการคำนวณ ให้แท็บเริ่มต้นเป็นกระทบยอดรายวิชา
   useEffect(() => {
-    if (calculationType !== 'ALL') {
-      setActiveTab('allocations');
-    }
+    setActiveTab('reconciliation');
   }, [calculationType]);
 
   const getAllocationsTabTitle = () => {
@@ -179,7 +177,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                   type="button"
                   onClick={() => {
                     if (onChangeCalculationType) onChangeCalculationType(type);
-                    if (type !== 'ALL') setActiveTab('allocations');
+                    setActiveTab('reconciliation');
                   }}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                     isActive
@@ -224,7 +222,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
               }`}
             >
               <Building2 className="w-3.5 h-3.5" />
-              <span>กระทบยอดรายแผนก</span>
+              <span>กระทบยอดรายวิชา</span>
             </button>
             <button
               onClick={() => setActiveTab('allocations')}
