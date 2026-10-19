@@ -48,14 +48,19 @@ CREATE TABLE IF NOT EXISTS `class_groups` (
 CREATE TABLE IF NOT EXISTS `budget_allocations` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `academic_term_id` INT UNSIGNED NOT NULL,
-    `class_group_id` INT UNSIGNED NOT NULL,
+    `class_group_id` INT UNSIGNED NULL,
+    `department_id` INT UNSIGNED NULL,
     `calculation_type` ENUM('REGULAR', 'SPECIAL_SUPPLEMENTARY', 'DUAL_EDUCATION', 'SHORT_COURSE') NOT NULL DEFAULT 'REGULAR',
+    `batch_name` VARCHAR(150) NULL,
+    `step_level` VARCHAR(100) NULL,
+    `school_name` VARCHAR(255) NULL,
+    `course_name` VARCHAR(255) NULL,
     `student_count` INT UNSIGNED NOT NULL DEFAULT 0,
     `total_practice_hours` DECIMAL(5, 2) NOT NULL DEFAULT 0.00,
     `rate_per_head` DECIMAL(8, 2) NOT NULL DEFAULT 350.00,
     `base_budget` DECIMAL(12, 2) GENERATED ALWAYS AS (
         CASE 
-            WHEN `calculation_type` = 'SHORT_COURSE' THEN `student_count` * `total_practice_hours` * `rate_per_head`
+            WHEN `calculation_type` = 'SHORT_COURSE' AND `total_practice_hours` > 0 THEN `student_count` * `total_practice_hours` * `rate_per_head`
             ELSE `student_count` * `rate_per_head`
         END
     ) STORED,
@@ -63,7 +68,9 @@ CREATE TABLE IF NOT EXISTS `budget_allocations` (
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `fk_alloc_term` FOREIGN KEY (`academic_term_id`) REFERENCES `academic_terms` (`id`),
     CONSTRAINT `fk_alloc_group` FOREIGN KEY (`class_group_id`) REFERENCES `class_groups` (`id`),
-    INDEX `idx_term_alloc` (`academic_term_id`, `class_group_id`)
+    CONSTRAINT `fk_alloc_dept` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`),
+    INDEX `idx_term_alloc` (`academic_term_id`, `class_group_id`),
+    INDEX `idx_alloc_dept` (`department_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 6. Inter-Department Shares

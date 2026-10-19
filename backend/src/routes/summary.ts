@@ -67,7 +67,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
       FROM departments d
       LEFT JOIN (
           SELECT 
-            cg.department_id, 
+            COALESCE(ba.department_id, cg.department_id) AS department_id, 
             SUM(ba.student_count) as student_count, 
             SUM(CASE WHEN cg.education_level_id = 1 THEN ba.student_count ELSE 0 END) AS students_voc,
             SUM(CASE WHEN cg.education_level_id = 2 THEN ba.student_count ELSE 0 END) AS students_high_voc,
@@ -81,9 +81,9 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
             SUM(CASE WHEN ba.calculation_type = 'DUAL_EDUCATION' THEN ba.base_budget ELSE 0 END) AS base_dual_education,
             SUM(CASE WHEN ba.calculation_type = 'SHORT_COURSE' THEN ba.base_budget ELSE 0 END) AS base_short_course
           FROM budget_allocations ba
-          JOIN class_groups cg ON ba.class_group_id = cg.id
+          LEFT JOIN class_groups cg ON ba.class_group_id = cg.id
           WHERE ba.academic_term_id = ? ${calcCondition}
-          GROUP BY cg.department_id
+          GROUP BY COALESCE(ba.department_id, cg.department_id)
       ) base ON d.id = base.department_id
       LEFT JOIN (
           SELECT 
@@ -98,7 +98,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
             SUM(CASE WHEN ba.calculation_type = 'SHORT_COURSE' THEN s.share_amount ELSE 0 END) AS deduct_short_course
           FROM inter_department_shares s
           JOIN budget_allocations ba ON s.allocation_id = ba.id
-          JOIN class_groups cg ON ba.class_group_id = cg.id
+          LEFT JOIN class_groups cg ON ba.class_group_id = cg.id
           WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY s.source_department_id
       ) deduct ON d.id = deduct.source_department_id
@@ -115,7 +115,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
             SUM(CASE WHEN ba.calculation_type = 'SHORT_COURSE' THEN s.share_amount ELSE 0 END) AS trans_short_course
           FROM inter_department_shares s
           JOIN budget_allocations ba ON s.allocation_id = ba.id
-          JOIN class_groups cg ON ba.class_group_id = cg.id
+          LEFT JOIN class_groups cg ON ba.class_group_id = cg.id
           WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY s.target_department_id
       ) trans ON d.id = trans.target_department_id

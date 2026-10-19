@@ -40,6 +40,15 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   const [selectedLevelId, setSelectedLevelId] = useState<number | 'all'>('all');
   const [selectedGroupId, setSelectedGroupId] = useState<number | ''>('');
 
+  // Mode-specific Inputs:
+  // ภาคสมทบ: ชื่อรุ่น
+  const [batchName, setBatchName] = useState<string>('');
+  // ทวิศึกษา: ขั้น, โรงเรียน
+  const [stepLevel, setStepLevel] = useState<string>('ขั้น 1');
+  const [schoolName, setSchoolName] = useState<string>('');
+  // ระยะสั้น: รายวิชา (ใช้ schoolName สำหรับโรงเรียน/หน่วยงาน ด้วย)
+  const [courseName, setCourseName] = useState<string>('');
+
   // Calculation Inputs
   const [studentCount, setStudentCount] = useState<number | ''>('');
   const [practiceHours, setPracticeHours] = useState<number | ''>('');
@@ -53,10 +62,12 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   // Auto-populate form when selecting an existing class group or clear when empty/new
   useEffect(() => {
     if (!selectedGroupId) {
-      setStudentCount('');
-      setPracticeHours('');
-      setRatePerHead('');
-      setShares([]);
+      if (selectedCalcType === 'REGULAR') {
+        setStudentCount('');
+        setPracticeHours('');
+        setRatePerHead('');
+        setShares([]);
+      }
       return;
     }
     const existing = allocations.find((a) => a.class_group_id === Number(selectedGroupId));
@@ -86,7 +97,6 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   // Handle cascaded filter changes
   const handleDepartmentChange = (deptId: number | '') => {
     setSelectedDeptId(deptId);
-    // If the currently selected group doesn't belong to the new department, reset group
     if (selectedGroupId && deptId !== '') {
       const curGroup = classGroups.find((g) => g.id === Number(selectedGroupId));
       if (curGroup && curGroup.department_id !== Number(deptId)) {
@@ -134,10 +144,8 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
 
   const isShortCourse = selectedCalcType === 'SHORT_COURSE';
 
-  // Reactive Base Budget Calculation
-  // สำหรับหลักสูตรระยะสั้น: ผู้เรียน (คน) × ชั่วโมงฝึกอบรม (ชม.) × อัตรา/คน/ชม. (บาท)
-  // สำหรับภาคปกติ / ภาคสมทบ / ภาคทวิศึกษา: นักเรียน (คน) × อัตราต่อหัว (บาท)
-  const baseBudget = Math.max(0, isShortCourse ? studentNum * practiceNum * rateNum : studentNum * rateNum);
+  // Reactive Base Budget Calculation (จำนวนคน × เงินต่อหัว)
+  const baseBudget = Math.max(0, studentNum * rateNum);
   const totalShares = shares.reduce((acc, curr) => acc + (Number(curr.share_amount) || 0), 0);
   const netDepartmentBudget = baseBudget - totalShares;
   const isOverBudget = totalShares > baseBudget;
@@ -145,15 +153,18 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   // Selected Group's Department
   const selectedGroup = classGroups.find((g) => g.id === Number(selectedGroupId));
 
-  // Available service departments (exclude group's own department)
-  const availableTargetDepts = departments.filter(
-    (d) => d.id !== selectedGroup?.department_id
-  );
+  // Available service departments (exclude group's / selected department)
+  const effectiveDeptId = selectedDeptId !== '' ? Number(selectedDeptId) : selectedGroup?.department_id;
+  const availableTargetDepts = departments.filter((d) => d.id !== effectiveDeptId);
 
   const handleResetForm = () => {
     setSelectedDeptId('');
     setSelectedLevelId('all');
     setSelectedGroupId('');
+    setBatchName('');
+    setStepLevel('ขั้น 1');
+    setSchoolName('');
+    setCourseName('');
     setStudentCount('');
     setPracticeHours('');
     setRatePerHead('');
@@ -186,22 +197,54 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isReadOnly) return;
-    if (!selectedGroupId) {
+
+    if (!selectedDeptId) {
+      setErrorMessage('กรุณาเลือกแผนกวิชา');
+      return;
+    }
+
+    if (selectedCalcType === 'REGULAR' && !selectedGroupId) {
       setErrorMessage('กรุณาเลือกกลุ่มเรียนที่ต้องการจัดสรร');
       return;
     }
+
+    if (selectedCalcType === 'SPECIAL_SUPPLEMENTARY' && !batchName.trim()) {
+      setErrorMessage('กรุณาระบุชื่อรุ่นสำหรับภาคสมทบ');
+      return;
+    }
+
+    if (selectedCalcType === 'DUAL_EDUCATION') {
+      if (!schoolName.trim()) {
+        setErrorMessage('กรุณาระบุชื่อโรงเรียนสำหรับทวิศึกษา');
+        return;
+      }
+      if (!stepLevel.trim()) {
+        setErrorMessage('กรุณาระบุขั้นสำหรับทวิศึกษา');
+        return;
+      }
+    }
+
+    if (selectedCalcType === 'SHORT_COURSE') {
+      if (!schoolName.trim()) {
+        setErrorMessage('กรุณาระบุโรงเรียน/หน่วยงานสำหรับหลักสูตรระยะสั้น');
+        return;
+      }
+      if (!courseName.trim()) {
+        setErrorMessage('กรุณาระบุรายวิชาสำหรับหลักสูตรระยะสั้น');
+        return;
+      }
+    }
+
     if (studentNum <= 0) {
-      setErrorMessage(isShortCourse ? 'กรุณาระบุจำนวนผู้เรียน (คน)' : 'กรุณาระบุจำนวนนักเรียน (คน)');
+      setErrorMessage('กรุณาระบุจำนวนคน/ผู้เรียน');
       return;
     }
-    if (isShortCourse && practiceNum <= 0) {
-      setErrorMessage('กรุณาระบุจำนวนชั่วโมงฝึกอบรม (ชม.) สำหรับหลักสูตรระยะสั้น');
-      return;
-    }
+
     if (rateNum <= 0) {
-      setErrorMessage(isShortCourse ? 'กรุณาระบุอัตราค่าวัสดุต่อคนต่อชั่วโมง (บาท)' : 'กรุณาระบุอัตราต่อหัว (บาท)');
+      setErrorMessage('กรุณาระบุเงินต่อหัว (บาท)');
       return;
     }
+
     if (isOverBudget) {
       setErrorMessage('ยอดปันส่วนให้แผนกสอนช่วย เกินกว่างบตั้งต้น');
       return;
@@ -217,10 +260,15 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           term_id: termId,
-          class_group_id: Number(selectedGroupId),
+          class_group_id: selectedCalcType === 'REGULAR' && selectedGroupId ? Number(selectedGroupId) : null,
+          department_id: Number(selectedDeptId),
           calculation_type: selectedCalcType,
+          batch_name: selectedCalcType === 'SPECIAL_SUPPLEMENTARY' ? batchName.trim() : null,
+          step_level: selectedCalcType === 'DUAL_EDUCATION' ? stepLevel.trim() : null,
+          school_name: (selectedCalcType === 'DUAL_EDUCATION' || selectedCalcType === 'SHORT_COURSE') ? schoolName.trim() : null,
+          course_name: selectedCalcType === 'SHORT_COURSE' ? courseName.trim() : null,
           student_count: studentNum,
-          total_practice_hours: practiceNum,
+          total_practice_hours: selectedCalcType === 'REGULAR' ? practiceNum : 0,
           rate_per_head: rateNum,
           created_by: createdBy,
           shares: shares.filter((s) => s.share_amount > 0)
@@ -248,6 +296,9 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   const hasFormContent =
     selectedDeptId !== '' ||
     selectedGroupId !== '' ||
+    batchName !== '' ||
+    schoolName !== '' ||
+    courseName !== '' ||
     studentCount !== '' ||
     practiceHours !== '' ||
     ratePerHead !== '' ||
@@ -347,7 +398,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
             {/* 1.2 แผนกวิชา */}
             <div>
               <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
-                แผนกวิชา
+                แผนกวิชา <span className="text-red-500">*</span>
               </label>
               <select
                 value={selectedDeptId}
@@ -368,104 +419,214 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
               </select>
             </div>
 
-            {/* 1.3 ชื่อกลุ่มเรียน */}
-            <div>
-              <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
-                ชื่อกลุ่มเรียน
-              </label>
-              <div className="grid grid-cols-[85px_1fr] sm:grid-cols-[105px_1fr] gap-1.5 sm:gap-2">
-                {/* เลือกระดับ (ปวช./ปวส./เรือนจำ/เลือก) */}
-                <select
-                  value={selectedLevelId}
-                  onChange={(e) =>
-                    handleLevelChange(e.target.value === 'all' ? 'all' : Number(e.target.value))
-                  }
-                  disabled={isReadOnly}
-                  className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors cursor-pointer"
-                >
-                  <option value="all">ระดับ</option>
-                  {educationLevels.map((lvl) => (
-                    <option key={lvl.id} value={lvl.id}>
-                      {lvl.name}
-                    </option>
-                  ))}
-                </select>
+            {/* 1.3 Conditional Inputs based on Calculation Type */}
+            {selectedCalcType === 'REGULAR' && (
+              <div>
+                <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
+                  ชื่อกลุ่มเรียน <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-[85px_1fr] sm:grid-cols-[105px_1fr] gap-1.5 sm:gap-2">
+                  <select
+                    value={selectedLevelId}
+                    onChange={(e) =>
+                      handleLevelChange(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                    }
+                    disabled={isReadOnly}
+                    className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors cursor-pointer"
+                  >
+                    <option value="all">ระดับ</option>
+                    {educationLevels.map((lvl) => (
+                      <option key={lvl.id} value={lvl.id}>
+                        {lvl.name}
+                      </option>
+                    ))}
+                  </select>
 
-                {/* เลือกกลุ่ม */}
-                <select
-                  value={selectedGroupId}
-                  onChange={(e) =>
-                    handleGroupChange(e.target.value === '' ? '' : Number(e.target.value))
-                  }
-                  disabled={isReadOnly}
-                  className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors cursor-pointer"
-                >
-                  <option value="">-- เลือกกลุ่มเรียน --</option>
-                  {availableGroups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.group_name} {!selectedDeptId ? `(${g.department_name})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  <select
+                    value={selectedGroupId}
+                    onChange={(e) =>
+                      handleGroupChange(e.target.value === '' ? '' : Number(e.target.value))
+                    }
+                    disabled={isReadOnly}
+                    className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors cursor-pointer"
+                  >
+                    <option value="">-- เลือกกลุ่มเรียน --</option>
+                    {availableGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.group_name} {!selectedDeptId ? `(${g.department_name})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedGroup && (
+                  <p className="mt-1 text-[10px] sm:text-[11px] text-slate-500">
+                    สังกัด: <span className="font-semibold text-slate-800">{selectedGroup.department_name}</span> • ระดับ: <span className="font-semibold text-indigo-700">{selectedGroup.education_level_name}</span>
+                  </p>
+                )}
               </div>
+            )}
 
-              {selectedGroup && (
-                <p className="mt-1 text-[10px] sm:text-[11px] text-slate-500">
-                  สังกัด: <span className="font-semibold text-slate-800">{selectedGroup.department_name}</span> • ระดับ: <span className="font-semibold text-indigo-700">{selectedGroup.education_level_name}</span>
-                </p>
-              )}
-            </div>
+            {selectedCalcType === 'SPECIAL_SUPPLEMENTARY' && (
+              <div>
+                <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
+                  ชื่อรุ่น <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น รุ่นที่ 1/2567 หรือ กลุ่มสมทบ 1"
+                  value={batchName}
+                  onChange={(e) => setBatchName(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+            )}
+
+            {selectedCalcType === 'DUAL_EDUCATION' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
+                    ขั้น <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ขั้น 1, ขั้น 2, ขั้น 3"
+                    value={stepLevel}
+                    onChange={(e) => setStepLevel(e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
+                    โรงเรียน <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น โรงเรียนมัธยมประจำอำเภอ"
+                    value={schoolName}
+                    onChange={(e) => setSchoolName(e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedCalcType === 'SHORT_COURSE' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
+                    โรงเรียน / หน่วยงาน <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น โรงเรียน / อบต. / หน่วยงาน"
+                    value={schoolName}
+                    onChange={(e) => setSchoolName(e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-indigo-600 mb-1 sm:mb-1.5">
+                    รายวิชา <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ช่างซ่อมบำรุง, อาหารและโภชนาการ"
+                    value={courseName}
+                    onChange={(e) => setCourseName(e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full bg-slate-50/80 border border-slate-300 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* 2. Numeric Inputs (Grid) */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
-            <div>
-              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
-                {isShortCourse ? 'จำนวนผู้เรียน (คน)' : 'จำนวน นร. (คน)'} <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={studentCount}
-                onChange={(e) => setStudentCount(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
-                disabled={isReadOnly}
-                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-1.5 sm:p-2 text-right font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
-              />
+          {/* 2. Numeric Inputs */}
+          {selectedCalcType === 'REGULAR' ? (
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
+                  จำนวน นร. (คน) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={studentCount}
+                  onChange={(e) => setStudentCount(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-1.5 sm:p-2 text-right font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
+                  ชม.ฝึกปฏิบัติ
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  placeholder="0"
+                  value={practiceHours}
+                  onChange={(e) => setPracticeHours(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-1.5 sm:p-2 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
+                  อัตรา/หัว (บาท) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  placeholder="0"
+                  value={ratePerHead}
+                  onChange={(e) => setRatePerHead(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-blue-700 text-xs rounded-xl p-1.5 sm:p-2 text-right font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
-                {isShortCourse ? 'ชม.ฝึกอบรม (ชม.)' : 'ชม.ฝึกปฏิบัติ'} {isShortCourse && <span className="text-red-500">*</span>}
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="0"
-                placeholder="0"
-                value={practiceHours}
-                onChange={(e) => setPracticeHours(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                disabled={isReadOnly}
-                className={`w-full bg-slate-50 border text-slate-900 text-xs rounded-xl p-1.5 sm:p-2 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums ${
-                  isShortCourse ? 'border-amber-300 font-bold bg-amber-50/40 text-amber-900' : 'border-slate-300'
-                }`}
-              />
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
+                  จำนวนคน (คน) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={studentCount}
+                  onChange={(e) => setStudentCount(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2 sm:p-2.5 text-right font-semibold focus:ring-2 focus:ring-indigo-500 focus:outline-none tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
+                  เงินต่อหัว (บาท) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  placeholder="0"
+                  value={ratePerHead}
+                  onChange={(e) => setRatePerHead(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-blue-700 text-xs rounded-xl p-2 sm:p-2.5 text-right font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none tabular-nums"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1 truncate">
-                {isShortCourse ? 'อัตรา/คน/ชม. (บ.)' : 'อัตรา/หัว (บาท)'} <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                step="1"
-                min="0"
-                placeholder="0"
-                value={ratePerHead}
-                onChange={(e) => setRatePerHead(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                disabled={isReadOnly}
-                className="w-full bg-slate-50 border border-slate-300 text-blue-700 text-xs rounded-xl p-1.5 sm:p-2 text-right font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none tabular-nums"
-              />
-            </div>
-          </div>
+          )}
 
           {/* 3. Reactive Calculation Summary Box */}
           <div className="p-3.5 bg-gradient-to-br from-blue-50/80 via-slate-50 to-indigo-50/50 rounded-2xl border border-blue-200/90 shadow-2xs">

@@ -456,81 +456,252 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                 <table className="w-full min-w-[700px] text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
-                      <th className="py-2.5 sm:py-3 px-3 sm:px-4">กลุ่มเรียน / แผนก</th>
-                      <th className="py-2.5 sm:py-3 px-2.5 text-center">ระดับ</th>
-                      <th className="py-2.5 sm:py-3 px-2 text-right">จำนวน นร.</th>
-                      <th className="py-2.5 sm:py-3 px-2 text-right">ชม.ฝึก</th>
-                      <th className="py-2.5 sm:py-3 px-3 text-right">งบตั้งต้น</th>
+                      {calculationType === 'SPECIAL_SUPPLEMENTARY' && (
+                        <>
+                          <th className="py-2.5 sm:py-3 px-3 sm:px-4">แผนก</th>
+                          <th className="py-2.5 sm:py-3 px-3">ชื่อรุ่น</th>
+                          <th className="py-2.5 sm:py-3 px-2.5 text-right">จำนวนคน</th>
+                          <th className="py-2.5 sm:py-3 px-2.5 text-right">เงินต่อหัว</th>
+                          <th className="py-2.5 sm:py-3 px-3 text-right">รวม (งบตั้งต้น)</th>
+                        </>
+                      )}
+                      {calculationType === 'DUAL_EDUCATION' && (
+                        <>
+                          <th className="py-2.5 sm:py-3 px-3 sm:px-4">แผนก</th>
+                          <th className="py-2.5 sm:py-3 px-2.5 text-center">ขั้น</th>
+                          <th className="py-2.5 sm:py-3 px-3">โรงเรียน</th>
+                          <th className="py-2.5 sm:py-3 px-2.5 text-right">จำนวนคน</th>
+                          <th className="py-2.5 sm:py-3 px-2.5 text-right">เงินต่อหัว</th>
+                          <th className="py-2.5 sm:py-3 px-3 text-right">รวม (งบตั้งต้น)</th>
+                        </>
+                      )}
+                      {calculationType === 'SHORT_COURSE' && (
+                        <>
+                          <th className="py-2.5 sm:py-3 px-3 sm:px-4">แผนก</th>
+                          <th className="py-2.5 sm:py-3 px-3">โรงเรียน / หน่วยงาน</th>
+                          <th className="py-2.5 sm:py-3 px-3">รายวิชา</th>
+                          <th className="py-2.5 sm:py-3 px-2.5 text-right">จำนวนคน</th>
+                          <th className="py-2.5 sm:py-3 px-2.5 text-right">เงินต่อหัว</th>
+                          <th className="py-2.5 sm:py-3 px-3 text-right">รวม (งบตั้งต้น)</th>
+                        </>
+                      )}
+                      {calculationType === 'REGULAR' && (
+                        <>
+                          <th className="py-2.5 sm:py-3 px-3 sm:px-4">กลุ่มเรียน / แผนก</th>
+                          <th className="py-2.5 sm:py-3 px-2.5 text-center">ระดับ</th>
+                          <th className="py-2.5 sm:py-3 px-2 text-right">จำนวน นร.</th>
+                          <th className="py-2.5 sm:py-3 px-2 text-right">ชม.ฝึก</th>
+                          <th className="py-2.5 sm:py-3 px-2.5 text-right">เงินต่อหัว</th>
+                          <th className="py-2.5 sm:py-3 px-3 text-right">รวม (งบตั้งต้น)</th>
+                        </>
+                      )}
+                      {calculationType === 'ALL' && (
+                        <>
+                          <th className="py-2.5 sm:py-3 px-3 sm:px-4">รายการ / แผนก</th>
+                          <th className="py-2.5 sm:py-3 px-2 text-center">ประเภท</th>
+                          <th className="py-2.5 sm:py-3 px-3">ข้อมูลจำเพาะ</th>
+                          <th className="py-2.5 sm:py-3 px-2 text-right">จำนวนคน</th>
+                          <th className="py-2.5 sm:py-3 px-2.5 text-right">เงินต่อหัว</th>
+                          <th className="py-2.5 sm:py-3 px-3 text-right">รวม (งบตั้งต้น)</th>
+                        </>
+                      )}
                       <th className="py-2.5 sm:py-3 px-3">การปันส่วนสอนช่วย</th>
                       <th className="py-2.5 sm:py-3 px-3 text-right font-bold">งบคงเหลือ</th>
                       {!isReadOnly && <th className="py-2.5 sm:py-3 px-2 text-center w-20">จัดการ</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {allocations.map((alloc) => (
-                      <tr key={alloc.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-2.5 sm:py-3 px-3 sm:px-4">
-                          <div className="flex items-center space-x-1.5 flex-wrap">
-                            <span className="font-bold text-slate-900">{alloc.group_name}</span>
-                            {alloc.calculation_type && alloc.calculation_type !== 'REGULAR' && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                {CALCULATION_TYPE_LABELS[alloc.calculation_type]}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-slate-500 font-medium">{alloc.department_name}</div>
-                        </td>
-                        <td className="py-2.5 sm:py-3 px-2.5 text-center">
-                          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50 text-[10px] font-semibold">
-                            {alloc.education_level_name}
-                          </span>
-                        </td>
-                        <td className="py-2.5 sm:py-3 px-2 text-right text-slate-800 font-semibold tabular-nums">{alloc.student_count}</td>
-                        <td className="py-2.5 sm:py-3 px-2 text-right text-slate-500 tabular-nums">{alloc.total_practice_hours}</td>
-                        <td className="py-2.5 sm:py-3 px-3 text-right font-semibold text-slate-900 tabular-nums">
-                          {Number(alloc.base_budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="py-2.5 sm:py-3 px-3">
-                          {alloc.shares && alloc.shares.length > 0 ? (
-                            <div className="space-y-1">
-                              {alloc.shares.map((s, idx) => (
-                                <div key={idx} className="text-[11px] flex items-center justify-between text-slate-700 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-200/60">
-                                  <span>{s.target_department_name} ({s.remark || 'สอนช่วย'}):</span>
-                                  <span className="font-bold text-amber-900 ml-2 tabular-nums">
-                                    {Number(s.share_amount).toLocaleString()} ฿
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 italic text-[11px]">ไม่มีการปันส่วน</span>
+                    {allocations.map((alloc) => {
+                      const allocType = alloc.calculation_type || 'REGULAR';
+                      return (
+                        <tr key={alloc.id} className="hover:bg-slate-50/80 transition-colors">
+                          {/* ภาคสมทบ: แผนก, ชื่อรุ่น, จำนวนคน, เงินต่อหัว, รวม */}
+                          {calculationType === 'SPECIAL_SUPPLEMENTARY' && (
+                            <>
+                              <td className="py-2.5 sm:py-3 px-3 sm:px-4 font-bold text-slate-900">
+                                {alloc.department_name}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-3 font-semibold text-indigo-700">
+                                {alloc.batch_name || alloc.group_name || '-'}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2.5 text-right text-slate-800 font-semibold tabular-nums">
+                                {Number(alloc.student_count).toLocaleString()}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2.5 text-right text-slate-700 tabular-nums">
+                                {Number(alloc.rate_per_head).toLocaleString()}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-3 text-right font-bold text-slate-900 tabular-nums">
+                                {Number(alloc.base_budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </td>
+                            </>
                           )}
-                        </td>
-                        <td className="py-2.5 sm:py-3 px-3 text-right font-black text-emerald-700 tabular-nums">
-                          {Number(alloc.remaining_budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </td>
-                        {!isReadOnly && (
-                          <td className="py-2.5 sm:py-3 px-2 text-center">
-                            <div className="flex items-center justify-center space-x-1">
-                              <button
-                                onClick={() => onEditAllocation(alloc)}
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                                title="แก้ไขรายการ"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => onDeleteAllocation(alloc.id)}
-                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                title="ลบรายการ"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
+
+                          {/* ทวิศึกษา: แผนก, ขั้น, โรงเรียน, จำนวนคน, เงินต่อหัว, รวม */}
+                          {calculationType === 'DUAL_EDUCATION' && (
+                            <>
+                              <td className="py-2.5 sm:py-3 px-3 sm:px-4 font-bold text-slate-900">
+                                {alloc.department_name}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2.5 text-center">
+                                <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-[10px] font-semibold">
+                                  {alloc.step_level || '-'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-3 font-medium text-slate-800">
+                                {alloc.school_name || '-'}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2.5 text-right text-slate-800 font-semibold tabular-nums">
+                                {Number(alloc.student_count).toLocaleString()}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2.5 text-right text-slate-700 tabular-nums">
+                                {Number(alloc.rate_per_head).toLocaleString()}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-3 text-right font-bold text-slate-900 tabular-nums">
+                                {Number(alloc.base_budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </td>
+                            </>
+                          )}
+
+                          {/* ระยะสั้น: แผนก, โรงเรียน, รายวิชา, จำนวนคน, เงินต่อหัว, รวม */}
+                          {calculationType === 'SHORT_COURSE' && (
+                            <>
+                              <td className="py-2.5 sm:py-3 px-3 sm:px-4 font-bold text-slate-900">
+                                {alloc.department_name}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-3 text-slate-700">
+                                {alloc.school_name || '-'}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-3 font-semibold text-indigo-700">
+                                {alloc.course_name || '-'}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2.5 text-right text-slate-800 font-semibold tabular-nums">
+                                {Number(alloc.student_count).toLocaleString()}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2.5 text-right text-slate-700 tabular-nums">
+                                {Number(alloc.rate_per_head).toLocaleString()}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-3 text-right font-bold text-slate-900 tabular-nums">
+                                {Number(alloc.base_budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </td>
+                            </>
+                          )}
+
+                          {/* ภาคปกติ: กลุ่มเรียน / แผนก, ระดับ, จำนวน นร., ชม.ฝึก, เงินต่อหัว, รวม */}
+                          {calculationType === 'REGULAR' && (
+                            <>
+                              <td className="py-2.5 sm:py-3 px-3 sm:px-4">
+                                <div className="font-bold text-slate-900">{alloc.group_name}</div>
+                                <div className="text-[11px] text-slate-500 font-medium">{alloc.department_name}</div>
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2.5 text-center">
+                                <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50 text-[10px] font-semibold">
+                                  {alloc.education_level_name || '-'}
+                                </span>
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2 text-right text-slate-800 font-semibold tabular-nums">
+                                {Number(alloc.student_count).toLocaleString()}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2 text-right text-slate-500 tabular-nums">
+                                {alloc.total_practice_hours}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2.5 text-right text-slate-700 tabular-nums">
+                                {Number(alloc.rate_per_head).toLocaleString()}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-3 text-right font-semibold text-slate-900 tabular-nums">
+                                {Number(alloc.base_budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </td>
+                            </>
+                          )}
+
+                          {/* รวมทั้งหมด (ALL) */}
+                          {calculationType === 'ALL' && (
+                            <>
+                              <td className="py-2.5 sm:py-3 px-3 sm:px-4">
+                                <div className="font-bold text-slate-900">
+                                  {alloc.group_name || alloc.batch_name || alloc.course_name || 'รายการจัดสรร'}
+                                </div>
+                                <div className="text-[11px] text-slate-500 font-medium">{alloc.department_name}</div>
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2 text-center">
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  {CALCULATION_TYPE_LABELS[allocType]}
+                                </span>
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-3 text-slate-700">
+                                {allocType === 'REGULAR' && (
+                                  <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50 text-[10px] font-semibold">
+                                    {alloc.education_level_name || '-'}
+                                  </span>
+                                )}
+                                {allocType === 'SPECIAL_SUPPLEMENTARY' && (
+                                  <span className="font-medium text-slate-800">{alloc.batch_name || '-'}</span>
+                                )}
+                                {allocType === 'DUAL_EDUCATION' && (
+                                  <span className="text-[11px]">
+                                    {alloc.school_name || '-'} {alloc.step_level ? `(${alloc.step_level})` : ''}
+                                  </span>
+                                )}
+                                {allocType === 'SHORT_COURSE' && (
+                                  <span className="text-[11px]">
+                                    {alloc.course_name || '-'} {alloc.school_name ? `(${alloc.school_name})` : ''}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2 text-right text-slate-800 font-semibold tabular-nums">
+                                {Number(alloc.student_count).toLocaleString()}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-2.5 text-right text-slate-700 tabular-nums">
+                                {Number(alloc.rate_per_head).toLocaleString()}
+                              </td>
+                              <td className="py-2.5 sm:py-3 px-3 text-right font-semibold text-slate-900 tabular-nums">
+                                {Number(alloc.base_budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </td>
+                            </>
+                          )}
+
+                          {/* Common Shared Columns */}
+                          <td className="py-2.5 sm:py-3 px-3">
+                            {alloc.shares && alloc.shares.length > 0 ? (
+                              <div className="space-y-1">
+                                {alloc.shares.map((s, idx) => (
+                                  <div key={idx} className="text-[11px] flex items-center justify-between text-slate-700 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-200/60">
+                                    <span>{s.target_department_name} ({s.remark || 'สอนช่วย'}):</span>
+                                    <span className="font-bold text-amber-900 ml-2 tabular-nums">
+                                      {Number(s.share_amount).toLocaleString()} ฿
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">ไม่มีการปันส่วน</span>
+                            )}
                           </td>
-                        )}
-                      </tr>
-                    ))}
+                          <td className="py-2.5 sm:py-3 px-3 text-right font-black text-emerald-700 tabular-nums">
+                            {Number(alloc.remaining_budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                          {!isReadOnly && (
+                            <td className="py-2.5 sm:py-3 px-2 text-center">
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  onClick={() => onEditAllocation(alloc)}
+                                  className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                  title="แก้ไขรายการ"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => onDeleteAllocation(alloc.id)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                  title="ลบรายการ"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}

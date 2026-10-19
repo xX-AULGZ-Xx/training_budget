@@ -21,6 +21,11 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
   onSuccess
 }) => {
   const [calculationType, setCalculationType] = useState<CalculationType>('REGULAR');
+  const [departmentId, setDepartmentId] = useState<number | ''>('');
+  const [batchName, setBatchName] = useState<string>('');
+  const [stepLevel, setStepLevel] = useState<string>('ขั้น 1');
+  const [schoolName, setSchoolName] = useState<string>('');
+  const [courseName, setCourseName] = useState<string>('');
   const [studentCount, setStudentCount] = useState<number>(0);
   const [practiceHours, setPracticeHours] = useState<number>(0);
   const [ratePerHead, setRatePerHead] = useState<number>(350);
@@ -33,6 +38,11 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
   useEffect(() => {
     if (allocation) {
       setCalculationType(allocation.calculation_type || 'REGULAR');
+      setDepartmentId(allocation.department_id || '');
+      setBatchName(allocation.batch_name || '');
+      setStepLevel(allocation.step_level || 'ขั้น 1');
+      setSchoolName(allocation.school_name || '');
+      setCourseName(allocation.course_name || '');
       setStudentCount(allocation.student_count);
       setPracticeHours(allocation.total_practice_hours);
       setRatePerHead(allocation.rate_per_head);
@@ -56,7 +66,7 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
   // Reactive calculations
   const baseBudget = Math.max(
     0,
-    isShortCourse ? (studentCount || 0) * (practiceHours || 0) * (ratePerHead || 0) : (studentCount || 0) * (ratePerHead || 0)
+    isShortCourse && practiceHours > 0 ? (studentCount || 0) * (practiceHours || 0) * (ratePerHead || 0) : (studentCount || 0) * (ratePerHead || 0)
   );
   const totalShares = shares.reduce((acc, curr) => acc + (Number(curr.share_amount) || 0), 0);
   const remainingBudget = baseBudget - totalShares;
@@ -90,9 +100,29 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isReadOnly) return;
-    if (isShortCourse && (!practiceHours || practiceHours <= 0)) {
-      setErrorMessage('กรุณาระบุจำนวนชั่วโมงฝึกอบรม (ชม.) สำหรับหลักสูตรระยะสั้น');
+    if (calculationType === 'SPECIAL_SUPPLEMENTARY' && !batchName.trim()) {
+      setErrorMessage('กรุณาระบุชื่อรุ่นสำหรับภาคสมทบ');
       return;
+    }
+    if (calculationType === 'DUAL_EDUCATION') {
+      if (!schoolName.trim()) {
+        setErrorMessage('กรุณาระบุชื่อโรงเรียนสำหรับทวิศึกษา');
+        return;
+      }
+      if (!stepLevel.trim()) {
+        setErrorMessage('กรุณาระบุขั้นสำหรับทวิศึกษา');
+        return;
+      }
+    }
+    if (calculationType === 'SHORT_COURSE') {
+      if (!schoolName.trim()) {
+        setErrorMessage('กรุณาระบุโรงเรียน/หน่วยงานสำหรับหลักสูตรระยะสั้น');
+        return;
+      }
+      if (!courseName.trim()) {
+        setErrorMessage('กรุณาระบุรายวิชาสำหรับหลักสูตรระยะสั้น');
+        return;
+      }
     }
     if (isOverBudget) {
       setErrorMessage('ยอดปันส่วนให้แผนกสอนช่วย เกินกว่างบตั้งต้น');
@@ -107,7 +137,12 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          department_id: departmentId || allocation.department_id,
           calculation_type: calculationType,
+          batch_name: batchName || null,
+          step_level: stepLevel || null,
+          school_name: schoolName || null,
+          course_name: courseName || null,
           student_count: Number(studentCount),
           total_practice_hours: Number(practiceHours),
           rate_per_head: Number(ratePerHead),
@@ -182,9 +217,6 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
                   {CALCULATION_TYPE_LABELS[calculationType]}
                 </span>
               </label>
-              <span className="text-[10px] text-slate-500 font-normal">
-                {isShortCourse ? 'คน × ชม. × อัตรา/คน/ชม.' : 'คน × อัตรา/หัว'}
-              </span>
             </div>
             <select
               value={calculationType}
@@ -199,59 +231,188 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
             </select>
           </div>
 
-          {/* Numeric Inputs Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {isShortCourse ? 'จำนวนผู้เรียน (คน)' : 'จำนวน นร./นศ. (คน)'} <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={studentCount}
-                onChange={(e) => setStudentCount(parseInt(e.target.value) || 0)}
-                disabled={isReadOnly}
-                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {isShortCourse ? 'ชั่วโมงฝึกอบรม (ชม.)' : 'ชั่วโมงฝึกปฏิบัติ (ชม.)'} {isShortCourse && <span className="text-red-500">*</span>}
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="0"
-                value={practiceHours}
-                onChange={(e) => setPracticeHours(parseFloat(e.target.value) || 0)}
-                disabled={isReadOnly}
-                className={`w-full bg-slate-50 border text-slate-900 text-sm rounded-lg p-2.5 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                  isShortCourse ? 'border-amber-300 font-bold bg-amber-50/40 text-amber-900' : 'border-slate-300'
-                }`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {isShortCourse ? 'อัตรา/คน/ชม. (บ.)' : 'อัตราต่อหัว (บาท/คน)'} <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                step="1"
-                min="0"
-                value={ratePerHead}
-                onChange={(e) => setRatePerHead(parseFloat(e.target.value) || 0)}
-                disabled={isReadOnly}
-                className="w-full bg-slate-50 border border-slate-300 text-blue-700 text-sm rounded-lg p-2.5 text-right font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
+          {/* Department Selection */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              แผนกวิชา <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value === '' ? '' : Number(e.target.value))}
+              disabled={isReadOnly || !!allocation.class_group_id}
+              className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            >
+              <option value="">-- เลือกแผนกวิชา --</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name} ({d.code})
+                </option>
+              ))}
+            </select>
           </div>
+
+          {/* Dynamic Descriptive Fields */}
+          {calculationType === 'SPECIAL_SUPPLEMENTARY' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                ชื่อรุ่น <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="เช่น รุ่นที่ 1/2567"
+                value={batchName}
+                onChange={(e) => setBatchName(e.target.value)}
+                disabled={isReadOnly}
+                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            </div>
+          )}
+
+          {calculationType === 'DUAL_EDUCATION' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ขั้น <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น ขั้น 1, ขั้น 2"
+                  value={stepLevel}
+                  onChange={(e) => setStepLevel(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  โรงเรียน <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น โรงเรียนมัธยม..."
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {calculationType === 'SHORT_COURSE' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  โรงเรียน / หน่วยงาน <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น โรงเรียน / อบต."
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  รายวิชา <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น ช่างซ่อมบำรุง"
+                  value={courseName}
+                  onChange={(e) => setCourseName(e.target.value)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Numeric Inputs Grid */}
+          {calculationType === 'REGULAR' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  จำนวน นร./นศ. (คน) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={studentCount}
+                  onChange={(e) => setStudentCount(parseInt(e.target.value) || 0)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ชั่วโมงฝึกปฏิบัติ (ชม.)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={practiceHours}
+                  onChange={(e) => setPracticeHours(parseFloat(e.target.value) || 0)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 text-right font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  อัตราต่อหัว (บาท/คน) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={ratePerHead}
+                  onChange={(e) => setRatePerHead(parseFloat(e.target.value) || 0)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-blue-700 text-sm rounded-lg p-2.5 text-right font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  จำนวนคน (คน) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={studentCount}
+                  onChange={(e) => setStudentCount(parseInt(e.target.value) || 0)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg p-2.5 text-right font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  เงินต่อหัว (บาท) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={ratePerHead}
+                  onChange={(e) => setRatePerHead(parseFloat(e.target.value) || 0)}
+                  disabled={isReadOnly}
+                  className="w-full bg-slate-50 border border-slate-300 text-blue-700 text-sm rounded-lg p-2.5 text-right font-semibold focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Reactive Recalculation Summary Box */}
           <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-xl border border-blue-200 shadow-inner">
             <div className="flex justify-between items-center text-xs text-slate-600 mb-1">
-              <span>งบตั้งต้นกลุ่มเรียน ({CALCULATION_TYPE_LABELS[calculationType]}) :</span>
+              <span>งบตั้งต้น ({CALCULATION_TYPE_LABELS[calculationType]}) :</span>
               <span className="font-semibold text-slate-800 font-mono">
-                {isShortCourse
+                {isShortCourse && practiceHours > 0
                   ? `${studentCount} คน × ${practiceHours} ชม. × ${ratePerHead.toLocaleString()} บาท`
                   : `${studentCount} คน × ${ratePerHead.toLocaleString()} บาท`}
               </span>
