@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DepartmentSummary,
   LevelSummary,
@@ -31,6 +31,7 @@ interface SummaryDashboardProps {
   selectedDepartmentId: string;
   onSelectDepartmentId: (deptId: string) => void;
   calculationType: CalculationType | 'ALL';
+  onChangeCalculationType?: (type: CalculationType | 'ALL') => void;
   onEditAllocation: (allocation: Allocation) => void;
   onDeleteAllocation: (id: number) => void;
   isReadOnly: boolean;
@@ -45,11 +46,27 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   selectedDepartmentId,
   onSelectDepartmentId,
   calculationType,
+  onChangeCalculationType,
   onEditAllocation,
   onDeleteAllocation,
   isReadOnly
 }) => {
   const [activeTab, setActiveTab] = useState<'reconciliation' | 'allocations' | 'levels'>('reconciliation');
+
+  // เมื่อเลือกประเภทการคำนวณ ให้สลับมาแสดงตารางรายการจัดสรรตามประเภทนั้นอัตโนมัติ
+  useEffect(() => {
+    if (calculationType !== 'ALL') {
+      setActiveTab('allocations');
+    }
+  }, [calculationType]);
+
+  const getAllocationsTabTitle = () => {
+    if (calculationType === 'SPECIAL_SUPPLEMENTARY') return `ตารางภาคสมทบ (${allocations.length})`;
+    if (calculationType === 'DUAL_EDUCATION') return `ตารางทวิศึกษา (${allocations.length})`;
+    if (calculationType === 'SHORT_COURSE') return `ตารางระยะสั้น (${allocations.length})`;
+    if (calculationType === 'REGULAR') return `ตารางภาคปกติ (${allocations.length})`;
+    return `รายการจัดสรรทั้งหมด (${allocations.length})`;
+  };
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -132,60 +149,89 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       </div>
 
       {/* 2. Controls & Tabs Bar */}
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xs border border-slate-200/90 p-2 sm:p-2.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
-        {/* Tab Controls */}
-        <div className="flex items-center space-x-1 bg-slate-100/90 p-1 rounded-xl w-full sm:w-auto overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setActiveTab('reconciliation')}
-            className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-              activeTab === 'reconciliation'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>กระทบยอดรายแผนก</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('allocations')}
-            className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-              activeTab === 'allocations'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>รายการกลุ่มเรียน ({allocations.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('levels')}
-            className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-              activeTab === 'levels'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <GraduationCap className="w-3.5 h-3.5" />
-            <span>ตามระดับการศึกษา</span>
-          </button>
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xs border border-slate-200/90 p-2 sm:p-2.5 flex flex-col gap-2.5">
+        {/* Calculation Type Switcher Pills */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+          <div className="flex items-center space-x-1.5 overflow-x-auto scrollbar-none py-0.5">
+            <span className="text-[11px] font-bold text-slate-500 mr-1 whitespace-nowrap">ประเภทงบ:</span>
+            {(['ALL', 'REGULAR', 'SPECIAL_SUPPLEMENTARY', 'DUAL_EDUCATION', 'SHORT_COURSE'] as const).map((type) => {
+              const isActive = calculationType === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    if (onChangeCalculationType) onChangeCalculationType(type);
+                    if (type !== 'ALL') setActiveTab('allocations');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                    isActive
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700'
+                  }`}
+                >
+                  {type === 'ALL' ? 'ทุกประเภทงบ' : CALCULATION_TYPE_LABELS[type]}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Scope Filter Dropdown (Department) */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">แผนก:</span>
+            <select
+              value={selectedDepartmentId}
+              onChange={(e) => onSelectDepartmentId(e.target.value)}
+              className="w-full sm:w-52 bg-slate-50 border border-slate-300 rounded-lg text-xs py-1 px-2 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="all">-- ทุกแผนกวิชา --</option>
+              {allDepartments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.code} - {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* Scope Filter Dropdown */}
-        <div className="flex items-center space-x-2 w-full sm:w-auto">
-          <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">แผนก:</span>
-          <select
-            value={selectedDepartmentId}
-            onChange={(e) => onSelectDepartmentId(e.target.value)}
-            className="w-full sm:w-56 bg-slate-50 border border-slate-300 rounded-lg text-xs py-1.5 px-2.5 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-          >
-            <option value="all">-- ทุกแผนกวิชาในวิทยาลัย --</option>
-            {allDepartments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.code} - {d.name}
-              </option>
-            ))}
-          </select>
+        {/* View Tabs */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-1 bg-slate-100/90 p-1 rounded-xl overflow-x-auto scrollbar-none">
+            <button
+              onClick={() => setActiveTab('reconciliation')}
+              className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                activeTab === 'reconciliation'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>กระทบยอดรายแผนก</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('allocations')}
+              className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                activeTab === 'allocations'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>{getAllocationsTabTitle()}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('levels')}
+              className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                activeTab === 'levels'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>ตามระดับการศึกษา</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -221,221 +267,343 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                {/* Two-tier Table Header */}
-                <thead className="select-none text-slate-700">
-                  <tr className="bg-slate-100/90 border-b border-slate-300">
-                    <th rowSpan={2} className="py-3 px-4 text-left font-bold border-r border-slate-300 min-w-[170px] whitespace-nowrap">
-                      แผนกวิชา
-                    </th>
-                    <th rowSpan={2} className="py-3 px-3 text-right font-bold border-r border-slate-300 min-w-[90px] whitespace-nowrap">
-                      งบตั้งต้น (+)
-                    </th>
-                    <th rowSpan={2} className="py-3 px-3 text-right font-bold border-r border-slate-300 min-w-[85px] text-rose-700 whitespace-nowrap">
-                      หักจ่าย (-)
-                    </th>
-                    <th rowSpan={2} className="py-3 px-3 text-right font-bold border-r border-slate-300 min-w-[85px] text-emerald-700 whitespace-nowrap">
-                      รับโอน (+)
-                    </th>
-                    <th colSpan={3} className="py-2 px-3 text-center font-bold border-r border-slate-300 border-b border-slate-300 bg-blue-50/70 text-blue-900 whitespace-nowrap">
-                      จำนวนนักเรียนรายระดับ
-                    </th>
-                    <th colSpan={4} className="py-2 px-3 text-center font-bold border-r border-slate-300 border-b border-slate-300 bg-emerald-50/70 text-emerald-900 whitespace-nowrap">
-                      งบประมาณสุทธิแยกตามประเภทการคำนวณ
-                    </th>
-                    <th rowSpan={2} className="py-3 px-4 text-right font-extrabold bg-blue-100/70 text-blue-950 border-l border-blue-200 min-w-[105px] whitespace-nowrap">
-                      งบสุทธิรวม
-                    </th>
-                  </tr>
-                  <tr className="border-b border-slate-300 text-[11px] font-bold">
-                    {/* Students by level subheaders */}
-                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-blue-50/40 text-blue-800 min-w-[55px]">ปวช.</th>
-                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-blue-50/40 text-blue-800 min-w-[55px]">ปวส.</th>
-                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-blue-50/40 text-blue-800 min-w-[55px]">เรือนจำ</th>
-                    {/* Net budget by calculation type subheaders */}
-                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ภาคปกติ</th>
-                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ภาคสมทบ</th>
-                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ภาคทวิศึกษา</th>
-                    <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ระยะสั้น</th>
-                  </tr>
-                </thead>
+              {calculationType !== 'ALL' && calculationType !== 'REGULAR' ? (
+                /* Dedicated Tab 1 for Specific Calculation Types (ภาคสมทบ / ทวิศึกษา / ระยะสั้น) */
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="select-none text-slate-700 bg-slate-100/90 border-b border-slate-300">
+                    <tr>
+                      <th className="py-3 px-4 text-left font-bold border-r border-slate-300 min-w-[170px] whitespace-nowrap">
+                        แผนกวิชา
+                      </th>
+                      <th className="py-3 px-3 text-right font-bold border-r border-slate-300 min-w-[80px] whitespace-nowrap">
+                        จำนวนคน (คน)
+                      </th>
+                      <th className="py-3 px-3 text-right font-bold border-r border-slate-300 min-w-[95px] whitespace-nowrap">
+                        งบตั้งต้น (+)
+                      </th>
+                      <th className="py-3 px-3 text-right font-bold border-r border-slate-300 min-w-[85px] text-rose-700 whitespace-nowrap">
+                        หักจ่าย (-)
+                      </th>
+                      <th className="py-3 px-3 text-right font-bold border-r border-slate-300 min-w-[85px] text-emerald-700 whitespace-nowrap">
+                        รับโอน (+)
+                      </th>
+                      <th className="py-3 px-4 text-right font-extrabold bg-blue-100/70 text-blue-950 border-l border-blue-200 min-w-[110px] whitespace-nowrap">
+                        งบสุทธิ {CALCULATION_TYPE_LABELS[calculationType]}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200/80 text-xs">
+                    {departments.map((dept, index) => {
+                      const base = Number(dept.base_budget);
+                      const deducted = Number(dept.total_deducted);
+                      const transferred = Number(dept.total_transferred);
+                      const net = Number(dept.net_budget);
+                      const students = Number(dept.student_count || 0);
+                      const isEven = index % 2 === 0;
 
-                {/* Table Body */}
-                <tbody className="divide-y divide-slate-200/80 text-xs">
-                  {departments.map((dept, index) => {
-                    const base = Number(dept.base_budget);
-                    const deducted = Number(dept.total_deducted);
-                    const transferred = Number(dept.total_transferred);
-                    const net = Number(dept.net_budget);
-
-                    const sVoc = Number(dept.students_voc || 0);
-                    const sHighVoc = Number(dept.students_high_voc || 0);
-                    const sPrison = Number(dept.students_prison || 0);
-
-                    const nRegular = Number(dept.net_regular || 0);
-                    const nSpecial = Number(dept.net_special_supplementary || 0);
-                    const nDual = Number(dept.net_dual_education || 0);
-                    const nShort = Number(dept.net_short_course || 0);
-
-                    const isEven = index % 2 === 0;
-
-                    return (
-                      <tr
-                        key={dept.department_id}
-                        className={`${isEven ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50 transition-colors`}
-                      >
-                        <td className="py-2.5 px-4 font-bold text-slate-900 border-r border-slate-200 whitespace-nowrap">
-                          <div className="flex items-center space-x-1.5">
-                            <span>{dept.department_name}</span>
-                            {dept.is_service_department === 1 && (
-                              <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
-                                สอนช่วย
+                      return (
+                        <tr
+                          key={dept.department_id}
+                          className={`${isEven ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50 transition-colors`}
+                        >
+                          <td className="py-2.5 px-4 font-bold text-slate-900 border-r border-slate-200 whitespace-nowrap">
+                            <div className="flex items-center space-x-1.5">
+                              <span>{dept.department_name}</span>
+                              {dept.is_service_department === 1 && (
+                                <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                  สอนช่วย
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-slate-800 border-r border-slate-200 font-semibold tabular-nums">
+                            {students > 0 ? students.toLocaleString() : <span className="text-slate-400 font-normal">0</span>}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-slate-800 border-r border-slate-200 font-medium tabular-nums">
+                            {base.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-2.5 px-3 text-right border-r border-slate-200 tabular-nums">
+                            {deducted > 0 ? (
+                              <span className="text-rose-600 font-medium">
+                                ({deducted.toLocaleString('en-US', { maximumFractionDigits: 2 })})
                               </span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">(0)</span>
                             )}
-                          </div>
+                          </td>
+                          <td className="py-2.5 px-3 text-right border-r border-slate-200 tabular-nums">
+                            {transferred > 0 ? (
+                              <span className="text-emerald-700 font-medium">
+                                {transferred.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">0</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-black bg-blue-50/70 text-blue-900 border-l border-blue-200 text-sm tabular-nums">
+                            {net > 0 ? (
+                              net.toLocaleString('en-US', { maximumFractionDigits: 2 })
+                            ) : (
+                              <span className="text-slate-400 font-normal text-xs">0</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  {departments.length > 0 && (
+                    <tfoot className="bg-slate-100 font-extrabold border-t-2 border-slate-300 text-xs">
+                      <tr>
+                        <td className="py-3 px-4 text-slate-900 border-r border-slate-300 whitespace-nowrap">
+                          รวมทั้งสิ้น ({departments.length} แผนก)
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-800 border-r border-slate-200 font-medium tabular-nums">
-                          {base.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                        <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 font-bold tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.student_count || 0), 0)
+                            .toLocaleString()}
                         </td>
-                        <td className="py-2.5 px-3 text-right border-r border-slate-200 tabular-nums">
-                          {deducted > 0 ? (
-                            <span className="text-rose-600 font-medium">
-                              ({deducted.toLocaleString('en-US', { maximumFractionDigits: 2 })})
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 font-normal">(0)</span>
-                          )}
+                        <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.base_budget), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })}
                         </td>
-                        <td className="py-2.5 px-3 text-right border-r border-slate-200 tabular-nums">
-                          {transferred > 0 ? (
-                            <span className="text-emerald-700 font-medium">
-                              {transferred.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 font-normal">0</span>
-                          )}
+                        <td className="py-3 px-3 text-right text-rose-700 border-r border-slate-300 tabular-nums">
+                          ({departments
+                            .reduce((sum, d) => sum + Number(d.total_deducted), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })})
                         </td>
-
-                        {/* Students columns */}
-                        <td className="py-2.5 px-3 text-right text-slate-700 border-r border-slate-200 bg-blue-50/15 tabular-nums">
-                          {sVoc > 0 ? sVoc.toLocaleString() : <span className="text-slate-400 font-normal">0</span>}
+                        <td className="py-3 px-3 text-right text-emerald-700 border-r border-slate-300 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.total_transferred), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-700 border-r border-slate-200 bg-blue-50/15 tabular-nums">
-                          {sHighVoc > 0 ? sHighVoc.toLocaleString() : <span className="text-slate-400 font-normal">0</span>}
-                        </td>
-                        <td className="py-2.5 px-3 text-right text-slate-700 border-r border-slate-200 bg-blue-50/15 tabular-nums">
-                          {sPrison > 0 ? sPrison.toLocaleString() : <span className="text-slate-400 font-normal">0</span>}
-                        </td>
-
-                        {/* Net budget by calculation type columns */}
-                        <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
-                          {nRegular > 0 ? (
-                            <span className="text-slate-900">{nRegular.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
-                          ) : (
-                            <span className="text-slate-400 font-normal">0</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
-                          {nSpecial > 0 ? (
-                            <span className="text-slate-900">{nSpecial.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
-                          ) : (
-                            <span className="text-slate-400 font-normal">0</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
-                          {nDual > 0 ? (
-                            <span className="text-slate-900">{nDual.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
-                          ) : (
-                            <span className="text-slate-400 font-normal">0</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
-                          {nShort > 0 ? (
-                            <span className="text-slate-900">{nShort.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
-                          ) : (
-                            <span className="text-slate-400 font-normal">0</span>
-                          )}
-                        </td>
-
-                        {/* Total Net column */}
-                        <td className="py-2.5 px-4 text-right font-black bg-blue-50/70 text-blue-900 border-l border-blue-200 text-sm tabular-nums">
-                          {net > 0 ? (
-                            net.toLocaleString('en-US', { maximumFractionDigits: 2 })
-                          ) : (
-                            <span className="text-slate-400 font-normal text-xs">0</span>
-                          )}
+                        <td className="py-3 px-4 text-right font-black text-blue-900 bg-blue-100/90 border-l border-blue-300 text-sm tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.net_budget), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })}
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-
-                {/* Total Summary Row (tfoot) */}
-                {departments.length > 0 && (
-                  <tfoot className="bg-slate-100 font-extrabold border-t-2 border-slate-300 text-xs">
-                    <tr>
-                      <td className="py-3 px-4 text-slate-900 border-r border-slate-300 whitespace-nowrap">
-                        รวมทั้งสิ้น ({departments.length} แผนก)
-                      </td>
-                      <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 tabular-nums">
-                        {departments
-                          .reduce((sum, d) => sum + Number(d.base_budget), 0)
-                          .toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-3 text-right text-rose-700 border-r border-slate-300 tabular-nums">
-                        ({departments
-                          .reduce((sum, d) => sum + Number(d.total_deducted), 0)
-                          .toLocaleString('en-US', { maximumFractionDigits: 2 })})
-                      </td>
-                      <td className="py-3 px-3 text-right text-emerald-700 border-r border-slate-300 tabular-nums">
-                        {departments
-                          .reduce((sum, d) => sum + Number(d.total_transferred), 0)
-                          .toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 bg-blue-50/40 tabular-nums">
-                        {departments
-                          .reduce((sum, d) => sum + Number(d.students_voc || 0), 0)
-                          .toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 bg-blue-50/40 tabular-nums">
-                        {departments
-                          .reduce((sum, d) => sum + Number(d.students_high_voc || 0), 0)
-                          .toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 bg-blue-50/40 tabular-nums">
-                        {departments
-                          .reduce((sum, d) => sum + Number(d.students_prison || 0), 0)
-                          .toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
-                        {departments
-                          .reduce((sum, d) => sum + Number(d.net_regular || 0), 0)
-                          .toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
-                        {departments
-                          .reduce((sum, d) => sum + Number(d.net_special_supplementary || 0), 0)
-                          .toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
-                        {departments
-                          .reduce((sum, d) => sum + Number(d.net_dual_education || 0), 0)
-                          .toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
-                        {departments
-                          .reduce((sum, d) => sum + Number(d.net_short_course || 0), 0)
-                          .toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-4 text-right font-black text-blue-900 bg-blue-100/90 border-l border-blue-300 text-sm tabular-nums">
-                        {departments
-                          .reduce((sum, d) => sum + Number(d.net_budget), 0)
-                          .toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                      </td>
+                    </tfoot>
+                  )}
+                </table>
+              ) : (
+                /* Full Multi-Column Tab 1 for ALL / REGULAR */
+                <table className="w-full text-left border-collapse text-xs">
+                  {/* Two-tier Table Header */}
+                  <thead className="select-none text-slate-700">
+                    <tr className="bg-slate-100/90 border-b border-slate-300">
+                      <th rowSpan={2} className="py-3 px-4 text-left font-bold border-r border-slate-300 min-w-[170px] whitespace-nowrap">
+                        แผนกวิชา
+                      </th>
+                      <th rowSpan={2} className="py-3 px-3 text-right font-bold border-r border-slate-300 min-w-[90px] whitespace-nowrap">
+                        งบตั้งต้น (+)
+                      </th>
+                      <th rowSpan={2} className="py-3 px-3 text-right font-bold border-r border-slate-300 min-w-[85px] text-rose-700 whitespace-nowrap">
+                        หักจ่าย (-)
+                      </th>
+                      <th rowSpan={2} className="py-3 px-3 text-right font-bold border-r border-slate-300 min-w-[85px] text-emerald-700 whitespace-nowrap">
+                        รับโอน (+)
+                      </th>
+                      <th colSpan={3} className="py-2 px-3 text-center font-bold border-r border-slate-300 border-b border-slate-300 bg-blue-50/70 text-blue-900 whitespace-nowrap">
+                        จำนวนนักเรียนรายระดับ
+                      </th>
+                      <th colSpan={4} className="py-2 px-3 text-center font-bold border-r border-slate-300 border-b border-slate-300 bg-emerald-50/70 text-emerald-900 whitespace-nowrap">
+                        งบประมาณสุทธิแยกตามประเภทการคำนวณ
+                      </th>
+                      <th rowSpan={2} className="py-3 px-4 text-right font-extrabold bg-blue-100/70 text-blue-950 border-l border-blue-200 min-w-[105px] whitespace-nowrap">
+                        งบสุทธิรวม
+                      </th>
                     </tr>
-                  </tfoot>
-                )}
-              </table>
+                    <tr className="border-b border-slate-300 text-[11px] font-bold">
+                      {/* Students by level subheaders */}
+                      <th className="py-2 px-3 text-right border-r border-slate-300 bg-blue-50/40 text-blue-800 min-w-[55px]">ปวช.</th>
+                      <th className="py-2 px-3 text-right border-r border-slate-300 bg-blue-50/40 text-blue-800 min-w-[55px]">ปวส.</th>
+                      <th className="py-2 px-3 text-right border-r border-slate-300 bg-blue-50/40 text-blue-800 min-w-[55px]">เรือนจำ</th>
+                      {/* Net budget by calculation type subheaders */}
+                      <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ภาคปกติ</th>
+                      <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ภาคสมทบ</th>
+                      <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ภาคทวิศึกษา</th>
+                      <th className="py-2 px-3 text-right border-r border-slate-300 bg-emerald-50/40 text-emerald-800 min-w-[75px]">ระยะสั้น</th>
+                    </tr>
+                  </thead>
+
+                  {/* Table Body */}
+                  <tbody className="divide-y divide-slate-200/80 text-xs">
+                    {departments.map((dept, index) => {
+                      const base = Number(dept.base_budget);
+                      const deducted = Number(dept.total_deducted);
+                      const transferred = Number(dept.total_transferred);
+                      const net = Number(dept.net_budget);
+
+                      const sVoc = Number(dept.students_voc || 0);
+                      const sHighVoc = Number(dept.students_high_voc || 0);
+                      const sPrison = Number(dept.students_prison || 0);
+
+                      const nRegular = Number(dept.net_regular || 0);
+                      const nSpecial = Number(dept.net_special_supplementary || 0);
+                      const nDual = Number(dept.net_dual_education || 0);
+                      const nShort = Number(dept.net_short_course || 0);
+
+                      const isEven = index % 2 === 0;
+
+                      return (
+                        <tr
+                          key={dept.department_id}
+                          className={`${isEven ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50 transition-colors`}
+                        >
+                          <td className="py-2.5 px-4 font-bold text-slate-900 border-r border-slate-200 whitespace-nowrap">
+                            <div className="flex items-center space-x-1.5">
+                              <span>{dept.department_name}</span>
+                              {dept.is_service_department === 1 && (
+                                <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                  สอนช่วย
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-slate-800 border-r border-slate-200 font-medium tabular-nums">
+                            {base.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-2.5 px-3 text-right border-r border-slate-200 tabular-nums">
+                            {deducted > 0 ? (
+                              <span className="text-rose-600 font-medium">
+                                ({deducted.toLocaleString('en-US', { maximumFractionDigits: 2 })})
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">(0)</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right border-r border-slate-200 tabular-nums">
+                            {transferred > 0 ? (
+                              <span className="text-emerald-700 font-medium">
+                                {transferred.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">0</span>
+                            )}
+                          </td>
+
+                          {/* Students columns */}
+                          <td className="py-2.5 px-3 text-right text-slate-700 border-r border-slate-200 bg-blue-50/15 tabular-nums">
+                            {sVoc > 0 ? sVoc.toLocaleString() : <span className="text-slate-400 font-normal">0</span>}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-slate-700 border-r border-slate-200 bg-blue-50/15 tabular-nums">
+                            {sHighVoc > 0 ? sHighVoc.toLocaleString() : <span className="text-slate-400 font-normal">0</span>}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-slate-700 border-r border-slate-200 bg-blue-50/15 tabular-nums">
+                            {sPrison > 0 ? sPrison.toLocaleString() : <span className="text-slate-400 font-normal">0</span>}
+                          </td>
+
+                          {/* Net budget by calculation type columns */}
+                          <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
+                            {nRegular > 0 ? (
+                              <span className="text-slate-900">{nRegular.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">0</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
+                            {nSpecial > 0 ? (
+                              <span className="text-slate-900">{nSpecial.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">0</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
+                            {nDual > 0 ? (
+                              <span className="text-slate-900">{nDual.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">0</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold border-r border-slate-200 bg-emerald-50/15 tabular-nums">
+                            {nShort > 0 ? (
+                              <span className="text-slate-900">{nShort.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">0</span>
+                            )}
+                          </td>
+
+                          {/* Total Net column */}
+                          <td className="py-2.5 px-4 text-right font-black bg-blue-50/70 text-blue-900 border-l border-blue-200 text-sm tabular-nums">
+                            {net > 0 ? (
+                              net.toLocaleString('en-US', { maximumFractionDigits: 2 })
+                            ) : (
+                              <span className="text-slate-400 font-normal text-xs">0</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+
+                  {/* Total Summary Row (tfoot) */}
+                  {departments.length > 0 && (
+                    <tfoot className="bg-slate-100 font-extrabold border-t-2 border-slate-300 text-xs">
+                      <tr>
+                        <td className="py-3 px-4 text-slate-900 border-r border-slate-300 whitespace-nowrap">
+                          รวมทั้งสิ้น ({departments.length} แผนก)
+                        </td>
+                        <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.base_budget), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3 text-right text-rose-700 border-r border-slate-300 tabular-nums">
+                          ({departments
+                            .reduce((sum, d) => sum + Number(d.total_deducted), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })})
+                        </td>
+                        <td className="py-3 px-3 text-right text-emerald-700 border-r border-slate-300 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.total_transferred), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 bg-blue-50/40 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.students_voc || 0), 0)
+                            .toLocaleString()}
+                        </td>
+                        <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 bg-blue-50/40 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.students_high_voc || 0), 0)
+                            .toLocaleString()}
+                        </td>
+                        <td className="py-3 px-3 text-right text-slate-900 border-r border-slate-300 bg-blue-50/40 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.students_prison || 0), 0)
+                            .toLocaleString()}
+                        </td>
+                        <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.net_regular || 0), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.net_special_supplementary || 0), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.net_dual_education || 0), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-300 bg-emerald-50/40 tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.net_short_course || 0), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4 text-right font-black text-blue-900 bg-blue-100/90 border-l border-blue-300 text-sm tabular-nums">
+                          {departments
+                            .reduce((sum, d) => sum + Number(d.net_budget), 0)
+                            .toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              )}
             </div>
           </div>
         )}

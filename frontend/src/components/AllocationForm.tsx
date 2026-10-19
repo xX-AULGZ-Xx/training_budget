@@ -11,6 +11,7 @@ interface AllocationFormProps {
   educationLevels?: EducationLevel[];
   allocations: Allocation[];
   calculationType: CalculationType | 'ALL';
+  onChangeCalculationType?: (type: CalculationType | 'ALL') => void;
   onSuccess: () => void;
 }
 
@@ -22,9 +23,10 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   educationLevels = [],
   allocations,
   calculationType,
+  onChangeCalculationType,
   onSuccess
 }) => {
-  // ประเภทการคำนวณที่กำลังบันทึก (ผูกตามแถบด้านบน หรือเลือกเองเมื่อแถบด้านบนเป็น ALL)
+  // ประเภทการคำนวณที่กำลังบันทึก
   const [selectedCalcType, setSelectedCalcType] = useState<CalculationType>(
     calculationType === 'ALL' ? 'REGULAR' : calculationType
   );
@@ -34,6 +36,13 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
       setSelectedCalcType(calculationType);
     }
   }, [calculationType]);
+
+  const handleCalcTypeChange = (newType: CalculationType) => {
+    setSelectedCalcType(newType);
+    if (onChangeCalculationType) {
+      onChangeCalculationType(newType);
+    }
+  };
 
   // Cascaded Selection States (Matching user design: แผนกวิชา -> [ระดับ] [เลือกกลุ่ม])
   const [selectedDeptId, setSelectedDeptId] = useState<number | ''>('');
@@ -356,44 +365,30 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
           {/* 1. Cascaded Department & Class Group Selection */}
           <div className="space-y-2.5 sm:space-y-3">
             {/* 1.1 ประเภทการคำนวณงบ */}
-            {calculationType === 'ALL' ? (
-              <div>
-                <div className="flex items-center justify-between mb-1 sm:mb-1.5">
-                  <label className="text-xs font-bold text-indigo-600 flex items-center space-x-1.5">
-                    <span>ประเภทการคำนวณงบ</span>
-                    <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/50">
-                      {CALCULATION_TYPE_LABELS[selectedCalcType]}
-                    </span>
-                  </label>
-                  <span className="text-[10px] text-slate-500 font-normal">
-                    {isShortCourse ? 'สูตร: คน × ชม. × อัตรา/คน/ชม.' : 'สูตร: คน × อัตรา/หัว'}
-                  </span>
-                </div>
-                <select
-                  value={selectedCalcType}
-                  onChange={(e) => setSelectedCalcType(e.target.value as CalculationType)}
-                  disabled={isReadOnly}
-                  className="w-full bg-slate-50/80 border border-indigo-200 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors cursor-pointer"
-                >
-                  <option value="REGULAR">ภาคปกติ (Regular)</option>
-                  <option value="SPECIAL_SUPPLEMENTARY">ภาคสมทบ (Special Supplementary)</option>
-                  <option value="DUAL_EDUCATION">ภาคทวิศึกษา (Dual Education)</option>
-                  <option value="SHORT_COURSE">ระยะสั้น (Short-term Course)</option>
-                </select>
-              </div>
-            ) : (
-              <div className="p-2 sm:p-2.5 bg-indigo-50/70 border border-indigo-200/80 rounded-xl flex items-center justify-between">
-                <div className="flex items-center space-x-1.5 sm:space-x-2">
-                  <span className="text-[11px] font-bold text-slate-700">ประเภทงบ:</span>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-indigo-600 text-white shadow-2xs">
+            <div>
+              <div className="flex items-center justify-between mb-1 sm:mb-1.5">
+                <label className="text-xs font-bold text-indigo-600 flex items-center space-x-1.5">
+                  <span>ประเภทการคำนวณงบ</span>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/50">
                     {CALCULATION_TYPE_LABELS[selectedCalcType]}
                   </span>
-                </div>
-                <span className="text-[10px] text-indigo-700 font-medium">
-                  {isShortCourse ? 'สูตร: คน × ชม. × อัตรา/คน/ชม.' : 'สูตร: คน × อัตรา/หัว'}
+                </label>
+                <span className="text-[10px] text-slate-500 font-normal">
+                  สูตร: คน × เงินต่อหัว
                 </span>
               </div>
-            )}
+              <select
+                value={selectedCalcType}
+                onChange={(e) => handleCalcTypeChange(e.target.value as CalculationType)}
+                disabled={isReadOnly}
+                className="w-full bg-slate-50/80 border border-indigo-200 text-slate-800 text-xs rounded-xl p-2 sm:p-2.5 font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors cursor-pointer"
+              >
+                <option value="REGULAR">ภาคปกติ (Regular)</option>
+                <option value="SPECIAL_SUPPLEMENTARY">ภาคสมทบ (Special Supplementary)</option>
+                <option value="DUAL_EDUCATION">ภาคทวิศึกษา (Dual Education)</option>
+                <option value="SHORT_COURSE">ระยะสั้น (Short-term Course)</option>
+              </select>
+            </div>
 
             {/* 1.2 แผนกวิชา */}
             <div>

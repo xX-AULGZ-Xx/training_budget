@@ -321,6 +321,7 @@ export function App() {
                     educationLevels={educationLevels}
                     allocations={allocations}
                     calculationType={calculationType}
+                    onChangeCalculationType={setCalculationType}
                     onSuccess={loadTermData}
                   />
                 )}
@@ -341,6 +342,7 @@ export function App() {
                   selectedDepartmentId={selectedDepartmentId}
                   onSelectDepartmentId={setSelectedDepartmentId}
                   calculationType={calculationType}
+                  onChangeCalculationType={setCalculationType}
                   onEditAllocation={(alloc) => {
                     setEditingAllocation(alloc);
                     setIsEditModalOpen(true);
