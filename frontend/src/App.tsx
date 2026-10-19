@@ -234,6 +234,7 @@ export function App() {
         onRefresh={loadTermData}
         loading={loading}
         systemSettings={systemSettings}
+        calculationType={calculationType}
       />
 
       {/* Main Content Area */}
@@ -347,6 +348,7 @@ export function App() {
                   }}
                   onDeleteAllocation={handleDeleteAllocation}
                   isReadOnly={selectedTerm?.status !== 'OPEN'}
+                  onDownloadPdf={handleDownloadPdf}
                 />
               </div>
             </div>

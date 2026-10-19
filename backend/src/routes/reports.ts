@@ -96,6 +96,17 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
         : rawDirectorName;
 
     // 3. Fetch Department Summary
+    const CALC_LABELS: Record<string, string> = {
+      ALL: 'ทุกประเภทงบ',
+      REGULAR: 'ภาคปกติ',
+      SPECIAL_SUPPLEMENTARY: 'ภาคสมทบ',
+      DUAL_EDUCATION: 'ภาคทวิศึกษา',
+      SHORT_COURSE: 'ระยะสั้น'
+    };
+    const calcUpper = String(calculation_type || 'all').toUpperCase();
+    const calcLabel = CALC_LABELS[calcUpper] || 'ทุกประเภทงบ';
+    const isSpecial = ['SPECIAL_SUPPLEMENTARY', 'DUAL_EDUCATION', 'SHORT_COURSE'].includes(calcUpper);
+
     let deptQuery = `
       SELECT 
           d.id AS department_id,
@@ -110,11 +121,14 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
            + COALESCE(trans.total_transferred, 0.00)) AS net_budget
       FROM departments d
       LEFT JOIN (
-          SELECT cg.department_id, SUM(ba.student_count) as student_count, SUM(ba.base_budget) AS total_base_budget
+          SELECT 
+            COALESCE(ba.department_id, cg.department_id) AS department_id, 
+            SUM(ba.student_count) AS student_count, 
+            SUM(ba.base_budget) AS total_base_budget
           FROM budget_allocations ba
-          JOIN class_groups cg ON ba.class_group_id = cg.id
+          LEFT JOIN class_groups cg ON ba.class_group_id = cg.id
           WHERE ba.academic_term_id = ? ${calcCondition}
-          GROUP BY cg.department_id
+          GROUP BY COALESCE(ba.department_id, cg.department_id)
       ) base ON d.id = base.department_id
       LEFT JOIN (
           SELECT s.source_department_id, SUM(s.share_amount) AS total_deducted
@@ -147,6 +161,52 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
 
     const [departments] = await pool.query<RowDataPacket[]>(deptQuery, deptParams);
 
+    // 4. Fetch Itemized Allocations for this calculation type
+    let allocQuery = `
+      SELECT 
+          ba.id,
+          ba.calculation_type,
+          ba.batch_name,
+          ba.step_level,
+          ba.school_name,
+          ba.course_name,
+          ba.student_count,
+          ba.rate_per_head,
+          ba.base_budget,
+          COALESCE(d.code, dept_cg.code, '') AS department_code,
+          COALESCE(d.name, dept_cg.name, 'ไม่ระบุแผนก') AS department_name,
+          cg.name AS group_name,
+          cg.level AS education_level
+      FROM budget_allocations ba
+      LEFT JOIN departments d ON ba.department_id = d.id
+      LEFT JOIN class_groups cg ON ba.class_group_id = cg.id
+      LEFT JOIN departments dept_cg ON cg.department_id = dept_cg.id
+      WHERE ba.academic_term_id = ? ${calcCondition}
+    `;
+    const allocParams: any[] = [term_id];
+    if (hasCalcType) {
+      allocParams.push(calculation_type);
+    }
+    if (department_id && department_id !== 'all') {
+      allocQuery += ' AND (ba.department_id = ? OR cg.department_id = ?)';
+      allocParams.push(department_id, department_id);
+    }
+    allocQuery += ' ORDER BY COALESCE(d.name, dept_cg.name) ASC, ba.id ASC';
+
+    const [allocations] = await pool.query<RowDataPacket[]>(allocQuery, allocParams);
+
+    // Filter departments for special calculation types
+    const displayedDepartments = isSpecial
+      ? departments.filter((dept) => {
+          const base = Number(dept.base_budget || 0);
+          const students = Number(dept.student_count || 0);
+          const net = Number(dept.net_budget || 0);
+          const deducted = Number(dept.total_deducted || 0);
+          const transferred = Number(dept.total_transferred || 0);
+          return base > 0 || students > 0 || net > 0 || deducted > 0 || transferred > 0;
+        })
+      : departments;
+
     // Create PDF Document
     const doc = new PDFDocument({ margin: 36, size: 'A4' });
 
@@ -159,10 +219,11 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
     const fontRegular = fontPaths ? 'THSarabun' : 'Helvetica';
     const fontBold = fontPaths ? 'THSarabun-Bold' : 'Helvetica-Bold';
 
+    const calcFileSuffix = hasCalcType ? `_${calcUpper.toLowerCase()}` : '_all';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `inline; filename="training_budget_report_term_${term.semester}_${term.academic_year}.pdf"`
+      `inline; filename="training_budget_report_${term.semester}_${term.academic_year}${calcFileSuffix}.pdf"`
     );
 
     doc.pipe(res);
@@ -170,28 +231,47 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
     // Header Title
     doc.font(fontBold).fontSize(16).text(collegeName, { align: 'center' });
     doc.font(fontRegular).fontSize(12).text(`${deptName} • ${affiliation}`, { align: 'center' });
-    doc.font(fontBold).fontSize(14).text(
-      `รายงานสรุปการจัดสรรงบประมาณค่าวัสดุฝึกปฏิบัติการ ประจำภาคเรียนที่ ${term.semester} ปีการศึกษา ${term.academic_year}`,
+    doc.font(fontBold).fontSize(13.5).text(
+      `รายงานสรุปการจัดสรรงบประมาณค่าวัสดุฝึกปฏิบัติการ (${calcLabel}) ประจำภาคเรียนที่ ${term.semester} ปีการศึกษา ${term.academic_year}`,
       { align: 'center' }
     );
-    doc.font(fontRegular).fontSize(10).text(
+    doc.font(fontRegular).fontSize(9.5).text(
       `สถานะงวด: ${term.status === 'OPEN' ? 'เปิดงวดจัดสรร (OPEN)' : 'ปิดงวด (CLOSED)'}  |  พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}`,
       { align: 'center' }
     );
-    doc.moveDown(1.2);
+    doc.moveDown(1.0);
 
-    // Table Header
+    // ==========================================
+    // Table 1: Summary / Reconciliation Table
+    // ==========================================
+    doc.font(fontBold).fontSize(11).fillColor('#0f172a').text(
+      `1. ตารางสรุปงบประมาณสุทธิรายแผนก (${calcLabel})`,
+      36,
+      doc.y
+    );
+    doc.moveDown(0.3);
+
     const tableTop = doc.y;
     doc.rect(36, tableTop - 3, 523, 20).fill('#f1f5f9');
     doc.fillColor('#0f172a');
     doc.font(fontBold).fontSize(10);
-    doc.text('รหัสแผนก', 42, tableTop + 2);
-    doc.text('ชื่อแผนกวิชา', 105, tableTop + 2);
-    doc.text('นักเรียน (คน)', 240, tableTop + 2, { width: 55, align: 'right' });
-    doc.text('งบตั้งต้น (บาท)', 305, tableTop + 2, { width: 75, align: 'right' });
-    doc.text('หักปันส่วน (-)', 385, tableTop + 2, { width: 55, align: 'right' });
-    doc.text('รับโอน (+)', 445, tableTop + 2, { width: 50, align: 'right' });
-    doc.text('งบสุทธิคงเหลือ', 500, tableTop + 2, { width: 55, align: 'right' });
+
+    if (isSpecial) {
+      doc.text('แผนกวิชา', 42, tableTop + 2);
+      doc.text('จำนวนคน (คน)', 210, tableTop + 2, { width: 65, align: 'right' });
+      doc.text('งบตั้งต้น (+)', 280, tableTop + 2, { width: 70, align: 'right' });
+      doc.text('หักจ่าย (-)', 355, tableTop + 2, { width: 60, align: 'right' });
+      doc.text('รับโอน (+)', 420, tableTop + 2, { width: 60, align: 'right' });
+      doc.text(`งบสุทธิ ${calcLabel}`, 485, tableTop + 2, { width: 70, align: 'right' });
+    } else {
+      doc.text('รหัสแผนก', 42, tableTop + 2);
+      doc.text('ชื่อแผนกวิชา', 105, tableTop + 2);
+      doc.text('นักเรียน (คน)', 240, tableTop + 2, { width: 55, align: 'right' });
+      doc.text('งบตั้งต้น (บาท)', 305, tableTop + 2, { width: 75, align: 'right' });
+      doc.text('หักปันส่วน (-)', 385, tableTop + 2, { width: 55, align: 'right' });
+      doc.text('รับโอน (+)', 445, tableTop + 2, { width: 50, align: 'right' });
+      doc.text('งบสุทธิคงเหลือ', 500, tableTop + 2, { width: 55, align: 'right' });
+    }
 
     doc.moveTo(36, tableTop + 18).lineTo(559, tableTop + 18).stroke('#cbd5e1');
 
@@ -204,60 +284,219 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
     let totalTrans = 0;
     let totalNet = 0;
 
-    departments.forEach((dept, index) => {
-      if (currentY > 730) {
+    if (displayedDepartments.length === 0) {
+      doc.rect(36, currentY - 2, 523, 22).fill('#f8fafc');
+      doc.fillColor('#64748b').font(fontRegular).fontSize(10);
+      doc.text(`ยังไม่มีข้อมูลของ${calcLabel}ในงวดนี้ (แสดงเฉพาะแผนกที่มีข้อมูล)`, 36, currentY + 3, {
+        width: 523,
+        align: 'center'
+      });
+      currentY += 26;
+    } else {
+      displayedDepartments.forEach((dept, index) => {
+        if (currentY > 730) {
+          doc.addPage();
+          currentY = 40;
+        }
+
+        const students = Number(dept.student_count || 0);
+        const base = Number(dept.base_budget || 0);
+        const deducted = Number(dept.total_deducted || 0);
+        const transferred = Number(dept.total_transferred || 0);
+        const net = Number(dept.net_budget || 0);
+
+        totalStudents += students;
+        totalBase += base;
+        totalDeduct += deducted;
+        totalTrans += transferred;
+        totalNet += net;
+
+        // Alternating row background
+        if (index % 2 === 1) {
+          doc.rect(36, currentY - 2, 523, 16).fill('#f8fafc');
+        }
+        doc.fillColor('#1e293b');
+        doc.fontSize(10);
+
+        if (isSpecial) {
+          doc.text(dept.department_name || '', 42, currentY, { width: 165, ellipsis: true });
+          doc.text(students > 0 ? students.toLocaleString() : '-', 210, currentY, { width: 65, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 280, currentY, { width: 70, align: 'right' });
+          doc.text(deducted > 0 ? deducted.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 355, currentY, { width: 60, align: 'right' });
+          doc.text(transferred > 0 ? transferred.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 420, currentY, { width: 60, align: 'right' });
+          doc.text(net.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 485, currentY, { width: 70, align: 'right' });
+        } else {
+          doc.text(dept.department_code || '', 42, currentY);
+          doc.text(dept.department_name || '', 105, currentY, { width: 135, ellipsis: true });
+          doc.text(students > 0 ? students.toLocaleString() : '-', 240, currentY, { width: 55, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 305, currentY, { width: 75, align: 'right' });
+          doc.text(deducted > 0 ? deducted.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 385, currentY, { width: 55, align: 'right' });
+          doc.text(transferred > 0 ? transferred.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 445, currentY, { width: 50, align: 'right' });
+          doc.text(net.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 500, currentY, { width: 55, align: 'right' });
+        }
+
+        currentY += 17;
+      });
+
+      // Total Summary Line
+      doc.moveTo(36, currentY).lineTo(559, currentY).stroke('#475569');
+      currentY += 4;
+      doc.rect(36, currentY - 2, 523, 19).fill('#e2e8f0');
+      doc.fillColor('#0f172a');
+      doc.font(fontBold).fontSize(10.5);
+
+      if (isSpecial) {
+        doc.text(`รวมทั้งสิ้น (${displayedDepartments.length} แผนก)`, 42, currentY + 2);
+        doc.text(totalStudents.toLocaleString(), 210, currentY + 2, { width: 65, align: 'right' });
+        doc.text(totalBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 280, currentY + 2, { width: 70, align: 'right' });
+        doc.text(totalDeduct.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 355, currentY + 2, { width: 60, align: 'right' });
+        doc.text(totalTrans.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 420, currentY + 2, { width: 60, align: 'right' });
+        doc.text(totalNet.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 485, currentY + 2, { width: 70, align: 'right' });
+      } else {
+        doc.text('รวมทั้งสิ้น (TOTAL SUMMARY)', 105, currentY + 2);
+        doc.text(totalStudents.toLocaleString(), 240, currentY + 2, { width: 55, align: 'right' });
+        doc.text(totalBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 305, currentY + 2, { width: 75, align: 'right' });
+        doc.text(totalDeduct.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 385, currentY + 2, { width: 55, align: 'right' });
+        doc.text(totalTrans.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 445, currentY + 2, { width: 50, align: 'right' });
+        doc.text(totalNet.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 500, currentY + 2, { width: 55, align: 'right' });
+      }
+      currentY += 21;
+    }
+
+    // ==========================================
+    // Table 2: Itemized Allocations Table
+    // ==========================================
+    if (allocations.length > 0) {
+      currentY += 15;
+      if (currentY > 670) {
         doc.addPage();
         currentY = 40;
       }
 
-      const students = Number(dept.student_count);
-      const base = Number(dept.base_budget);
-      const deducted = Number(dept.total_deducted);
-      const transferred = Number(dept.total_transferred);
-      const net = Number(dept.net_budget);
+      doc.font(fontBold).fontSize(11).fillColor('#0f172a').text(
+        `2. รายละเอียดรายการจัดสรร (${calcLabel} - ทั้งหมด ${allocations.length} รายการ)`,
+        36,
+        currentY
+      );
+      currentY += 16;
 
-      totalStudents += students;
-      totalBase += base;
-      totalDeduct += deducted;
-      totalTrans += transferred;
-      totalNet += net;
+      const allocTableTop = currentY;
+      doc.rect(36, allocTableTop - 3, 523, 20).fill('#e0e7ff');
+      doc.fillColor('#1e1b4b').font(fontBold).fontSize(9.5);
 
-      // Alternating row background
-      if (index % 2 === 1) {
-        doc.rect(36, currentY - 2, 523, 16).fill('#f8fafc');
-        doc.fillColor('#1e293b');
+      if (calcUpper === 'SPECIAL_SUPPLEMENTARY') {
+        doc.text('แผนกวิชา', 42, allocTableTop + 2);
+        doc.text('ชื่อรุ่น / กลุ่มเรียน', 180, allocTableTop + 2);
+        doc.text('จำนวนคน (คน)', 340, allocTableTop + 2, { width: 60, align: 'right' });
+        doc.text('เงินต่อหัว (บาท)', 405, allocTableTop + 2, { width: 70, align: 'right' });
+        doc.text('รวมเงินจัดสรร (บาท)', 480, allocTableTop + 2, { width: 75, align: 'right' });
+      } else if (calcUpper === 'DUAL_EDUCATION') {
+        doc.text('แผนกวิชา', 42, allocTableTop + 2);
+        doc.text('ขั้น', 165, allocTableTop + 2, { width: 45, align: 'center' });
+        doc.text('โรงเรียน / สถานศึกษา', 215, allocTableTop + 2);
+        doc.text('จำนวนคน', 350, allocTableTop + 2, { width: 55, align: 'right' });
+        doc.text('เงินต่อหัว', 410, allocTableTop + 2, { width: 65, align: 'right' });
+        doc.text('รวมจัดสรร (บาท)', 480, allocTableTop + 2, { width: 75, align: 'right' });
+      } else if (calcUpper === 'SHORT_COURSE') {
+        doc.text('แผนกวิชา', 42, allocTableTop + 2);
+        doc.text('โรงเรียน / หน่วยงาน', 155, allocTableTop + 2);
+        doc.text('รายวิชา', 290, allocTableTop + 2);
+        doc.text('คน', 400, allocTableTop + 2, { width: 45, align: 'right' });
+        doc.text('ต่อหัว (บาท)', 450, allocTableTop + 2, { width: 50, align: 'right' });
+        doc.text('รวม (บาท)', 505, allocTableTop + 2, { width: 50, align: 'right' });
       } else {
-        doc.fillColor('#1e293b');
+        doc.text('แผนกวิชา', 42, allocTableTop + 2);
+        doc.text('กลุ่มเรียน / รายการ', 175, allocTableTop + 2);
+        doc.text('ระดับ / ข้อมูล', 315, allocTableTop + 2, { width: 55, align: 'center' });
+        doc.text('จำนวนคน', 375, allocTableTop + 2, { width: 55, align: 'right' });
+        doc.text('เงินต่อหัว', 435, allocTableTop + 2, { width: 55, align: 'right' });
+        doc.text('รวมงบตั้งต้น', 495, allocTableTop + 2, { width: 60, align: 'right' });
       }
 
-      doc.fontSize(10.5);
-      doc.text(dept.department_code || '', 42, currentY);
-      doc.text(dept.department_name || '', 105, currentY, { width: 135, ellipsis: true });
-      doc.text(students > 0 ? students.toLocaleString() : '-', 240, currentY, { width: 55, align: 'right' });
-      doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 305, currentY, { width: 75, align: 'right' });
-      doc.text(deducted > 0 ? deducted.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 385, currentY, { width: 55, align: 'right' });
-      doc.text(transferred > 0 ? transferred.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 445, currentY, { width: 50, align: 'right' });
-      doc.text(net.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 500, currentY, { width: 55, align: 'right' });
+      doc.moveTo(36, allocTableTop + 18).lineTo(559, allocTableTop + 18).stroke('#a5b4fc');
+      currentY = allocTableTop + 23;
+      doc.font(fontRegular).fontSize(9.5);
 
-      currentY += 17;
-    });
+      let sumAllocStudents = 0;
+      let sumAllocBase = 0;
 
-    // Total Line
-    doc.moveTo(36, currentY).lineTo(559, currentY).stroke('#475569');
-    currentY += 4;
-    doc.rect(36, currentY - 2, 523, 19).fill('#e2e8f0');
-    doc.fillColor('#0f172a');
-    doc.font(fontBold).fontSize(11);
-    doc.text('รวมทั้งสิ้น (TOTAL SUMMARY)', 105, currentY + 2);
-    doc.text(totalStudents.toLocaleString(), 240, currentY + 2, { width: 55, align: 'right' });
-    doc.text(totalBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 305, currentY + 2, { width: 75, align: 'right' });
-    doc.text(totalDeduct.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 385, currentY + 2, { width: 55, align: 'right' });
-    doc.text(totalTrans.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 445, currentY + 2, { width: 50, align: 'right' });
-    doc.text(totalNet.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 500, currentY + 2, { width: 55, align: 'right' });
+      allocations.forEach((alloc, index) => {
+        if (currentY > 730) {
+          doc.addPage();
+          currentY = 40;
+        }
 
+        const count = Number(alloc.student_count || 0);
+        const rate = Number(alloc.rate_per_head || 0);
+        const base = Number(alloc.base_budget || 0);
+
+        sumAllocStudents += count;
+        sumAllocBase += base;
+
+        if (index % 2 === 1) {
+          doc.rect(36, currentY - 2, 523, 16).fill('#f8fafc');
+        }
+        doc.fillColor('#1e293b');
+
+        if (calcUpper === 'SPECIAL_SUPPLEMENTARY') {
+          doc.text(alloc.department_name || '', 42, currentY, { width: 135, ellipsis: true });
+          doc.text(alloc.batch_name || alloc.group_name || '-', 180, currentY, { width: 155, ellipsis: true });
+          doc.text(count.toLocaleString(), 340, currentY, { width: 60, align: 'right' });
+          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 405, currentY, { width: 70, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 480, currentY, { width: 75, align: 'right' });
+        } else if (calcUpper === 'DUAL_EDUCATION') {
+          doc.text(alloc.department_name || '', 42, currentY, { width: 120, ellipsis: true });
+          doc.text(alloc.step_level || '-', 165, currentY, { width: 45, align: 'center' });
+          doc.text(alloc.school_name || '-', 215, currentY, { width: 130, ellipsis: true });
+          doc.text(count.toLocaleString(), 350, currentY, { width: 55, align: 'right' });
+          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 410, currentY, { width: 65, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 480, currentY, { width: 75, align: 'right' });
+        } else if (calcUpper === 'SHORT_COURSE') {
+          doc.text(alloc.department_name || '', 42, currentY, { width: 110, ellipsis: true });
+          doc.text(alloc.school_name || '-', 155, currentY, { width: 130, ellipsis: true });
+          doc.text(alloc.course_name || '-', 290, currentY, { width: 105, ellipsis: true });
+          doc.text(count.toLocaleString(), 400, currentY, { width: 45, align: 'right' });
+          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 450, currentY, { width: 50, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 505, currentY, { width: 50, align: 'right' });
+        } else {
+          doc.text(alloc.department_name || '', 42, currentY, { width: 130, ellipsis: true });
+          doc.text(alloc.group_name || alloc.batch_name || '-', 175, currentY, { width: 135, ellipsis: true });
+          doc.text(alloc.education_level || alloc.step_level || '-', 315, currentY, { width: 55, align: 'center' });
+          doc.text(count.toLocaleString(), 375, currentY, { width: 55, align: 'right' });
+          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 435, currentY, { width: 55, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 495, currentY, { width: 60, align: 'right' });
+        }
+
+        currentY += 17;
+      });
+
+      // Total Line for Allocations
+      doc.moveTo(36, currentY).lineTo(559, currentY).stroke('#a5b4fc');
+      currentY += 4;
+      doc.rect(36, currentY - 2, 523, 19).fill('#e0e7ff');
+      doc.fillColor('#1e1b4b').font(fontBold).fontSize(10);
+      doc.text(`รวมรายการจัดสรรทั้งสิ้น (${allocations.length} รายการ)`, 42, currentY + 2);
+      if (calcUpper === 'SHORT_COURSE') {
+        doc.text(sumAllocStudents.toLocaleString(), 400, currentY + 2, { width: 45, align: 'right' });
+        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 505, currentY + 2, { width: 50, align: 'right' });
+      } else if (calcUpper === 'SPECIAL_SUPPLEMENTARY') {
+        doc.text(sumAllocStudents.toLocaleString(), 340, currentY + 2, { width: 60, align: 'right' });
+        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 480, currentY + 2, { width: 75, align: 'right' });
+      } else if (calcUpper === 'DUAL_EDUCATION') {
+        doc.text(sumAllocStudents.toLocaleString(), 350, currentY + 2, { width: 55, align: 'right' });
+        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 480, currentY + 2, { width: 75, align: 'right' });
+      } else {
+        doc.text(sumAllocStudents.toLocaleString(), 375, currentY + 2, { width: 55, align: 'right' });
+        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 495, currentY + 2, { width: 60, align: 'right' });
+      }
+      currentY += 21;
+    }
+
+    // ==========================================
     // Footer Signatures
-    currentY += 50;
-    if (currentY > 700) {
+    // ==========================================
+    currentY += 35;
+    if (currentY > 690) {
       doc.addPage();
       currentY = 50;
     }

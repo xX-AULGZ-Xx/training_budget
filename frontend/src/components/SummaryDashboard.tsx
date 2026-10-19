@@ -35,6 +35,7 @@ interface SummaryDashboardProps {
   onEditAllocation: (allocation: Allocation) => void;
   onDeleteAllocation: (id: number) => void;
   isReadOnly: boolean;
+  onDownloadPdf?: () => void;
 }
 
 export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
@@ -49,7 +50,8 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   onChangeCalculationType,
   onEditAllocation,
   onDeleteAllocation,
-  isReadOnly
+  isReadOnly,
+  onDownloadPdf
 }) => {
   const [activeTab, setActiveTab] = useState<'reconciliation' | 'allocations' | 'levels'>('reconciliation');
 
@@ -191,22 +193,36 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
             })}
           </div>
 
-          {/* Scope Filter Dropdown (Department) */}
-          <div className="flex items-center space-x-2 shrink-0">
-            <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">แผนก:</span>
-            <select
-              value={selectedDepartmentId}
-              onChange={(e) => onSelectDepartmentId(e.target.value)}
-              className="w-full sm:w-52 bg-slate-50 border border-slate-300 rounded-lg text-xs py-1 px-2 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-            >
-              <option value="all">-- ทุกแผนกวิชา --</option>
-              {allDepartments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.code} - {d.name}
-                </option>
-              ))}
-            </select>
+          {/* Scope Filter Dropdown (Department) & PDF Export */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex items-center space-x-2">
+              <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">แผนก:</span>
+              <select
+                value={selectedDepartmentId}
+                onChange={(e) => onSelectDepartmentId(e.target.value)}
+                className="w-full sm:w-48 bg-slate-50 border border-slate-300 rounded-lg text-xs py-1 px-2 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                <option value="all">-- ทุกแผนกวิชา --</option>
+                {allDepartments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.code} - {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {onDownloadPdf && (
+              <button
+                type="button"
+                onClick={onDownloadPdf}
+                className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs shadow-blue-500/15 transition-all cursor-pointer whitespace-nowrap"
+                title={`พิมพ์รายงาน PDF (${calculationType === 'ALL' ? 'ทุกประเภทงบ' : CALCULATION_TYPE_LABELS[calculationType]})`}
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>พิมพ์ PDF ({calculationType === 'ALL' ? 'ทั้งหมด' : CALCULATION_TYPE_LABELS[calculationType]})</span>
+              </button>
+            )}
           </div>
         </div>
 

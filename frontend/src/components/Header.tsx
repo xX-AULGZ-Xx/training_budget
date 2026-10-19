@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AcademicTerm, SystemSettings } from '../types';
+import { AcademicTerm, SystemSettings, CalculationType, CALCULATION_TYPE_LABELS } from '../types';
 import {
   School,
   Calendar,
@@ -27,6 +27,7 @@ interface HeaderProps {
   onRefresh: () => void;
   loading: boolean;
   systemSettings?: SystemSettings | null;
+  calculationType?: CalculationType | 'ALL';
 }
 
 const VIEW_OPTIONS = [
@@ -64,7 +65,8 @@ export const Header: React.FC<HeaderProps> = ({
   onDownloadPdf,
   onRefresh,
   loading,
-  systemSettings
+  systemSettings,
+  calculationType
 }) => {
   const isReadOnly = selectedTerm?.status !== 'OPEN';
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -204,9 +206,15 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onDownloadPdf}
               className="inline-flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs shadow-blue-500/20 transition-all cursor-pointer whitespace-nowrap"
+              title={`พิมพ์รายงาน PDF (${calculationType && calculationType !== 'ALL' ? CALCULATION_TYPE_LABELS[calculationType] : 'ทุกประเภทงบ'})`}
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>พิมพ์ PDF</span>
+              <span>
+                พิมพ์ PDF
+                {calculationType && calculationType !== 'ALL'
+                  ? ` (${CALCULATION_TYPE_LABELS[calculationType]})`
+                  : ''}
+              </span>
             </button>
 
             {/* View Switcher Dropdown (ปุ่มเฟือง: ตั้งค่า) */}
