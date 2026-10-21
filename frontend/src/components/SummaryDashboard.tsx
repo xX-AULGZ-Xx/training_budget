@@ -35,7 +35,7 @@ interface SummaryDashboardProps {
   onEditAllocation: (allocation: Allocation) => void;
   onDeleteAllocation: (id: number) => void;
   isReadOnly: boolean;
-  onDownloadPdf?: () => void;
+  onDownloadPdf?: (departmentId?: string) => void;
 }
 
 export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
@@ -84,6 +84,9 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
         return base > 0 || students > 0 || net > 0 || deducted > 0 || transferred > 0;
       })
     : departments;
+
+  const currentDeptObj = allDepartments.find((d) => String(d.id) === String(selectedDepartmentId));
+  const selectedDeptName = currentDeptObj ? currentDeptObj.name : '';
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -213,15 +216,40 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
             </div>
 
             {onDownloadPdf && (
-              <button
-                type="button"
-                onClick={onDownloadPdf}
-                className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs shadow-blue-500/15 transition-all cursor-pointer whitespace-nowrap"
-                title={`พิมพ์รายงาน PDF (${calculationType === 'ALL' ? 'ทุกประเภทงบ' : CALCULATION_TYPE_LABELS[calculationType]})`}
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>พิมพ์ PDF ({calculationType === 'ALL' ? 'ทั้งหมด' : CALCULATION_TYPE_LABELS[calculationType]})</span>
-              </button>
+              <div className="flex items-center space-x-1.5">
+                {selectedDepartmentId !== 'all' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onDownloadPdf(selectedDepartmentId)}
+                      className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs shadow-blue-500/15 transition-all cursor-pointer whitespace-nowrap"
+                      title={`พิมพ์รายงาน PDF เฉพาะแผนก${selectedDeptName} (${calculationType === 'ALL' ? 'ทุกประเภทงบ' : CALCULATION_TYPE_LABELS[calculationType]})`}
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>พิมพ์ PDF แผนก {selectedDeptName ? selectedDeptName : 'ที่เลือก'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDownloadPdf('all')}
+                      className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                      title={`พิมพ์รายงาน PDF สรุปทุกแผนก (${calculationType === 'ALL' ? 'ทุกประเภทงบ' : CALCULATION_TYPE_LABELS[calculationType]})`}
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" />
+                      <span>พิมพ์ PDF สรุปทุกแผนก</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onDownloadPdf('all')}
+                    className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs shadow-blue-500/15 transition-all cursor-pointer whitespace-nowrap"
+                    title={`พิมพ์รายงาน PDF สรุปทุกแผนก (${calculationType === 'ALL' ? 'ทุกประเภทงบ' : CALCULATION_TYPE_LABELS[calculationType]})`}
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>พิมพ์ PDF สรุปทุกแผนก</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -345,12 +373,27 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                             className={`${isEven ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50 transition-colors`}
                           >
                             <td className="py-2.5 px-4 font-bold text-slate-900 border-r border-slate-200 whitespace-nowrap">
-                              <div className="flex items-center space-x-1.5">
-                                <span>{dept.department_name}</span>
-                                {dept.is_service_department === 1 && (
-                                  <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
-                                    สอนช่วย
-                                  </span>
+                              <div className="flex items-center justify-between gap-1.5">
+                                <div className="flex items-center space-x-1.5 truncate">
+                                  <span>{dept.department_name}</span>
+                                  {dept.is_service_department === 1 && (
+                                    <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                      สอนช่วย
+                                    </span>
+                                  )}
+                                </div>
+                                {onDownloadPdf && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onDownloadPdf(String(dept.department_id));
+                                    }}
+                                    className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors shrink-0 cursor-pointer"
+                                    title={`พิมพ์รายงาน PDF แผนก${dept.department_name}`}
+                                  >
+                                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                                  </button>
                                 )}
                               </div>
                             </td>
@@ -502,12 +545,27 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                           className={`${isEven ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50 transition-colors`}
                         >
                           <td className="py-2.5 px-4 font-bold text-slate-900 border-r border-slate-200 whitespace-nowrap">
-                            <div className="flex items-center space-x-1.5">
-                              <span>{dept.department_name}</span>
-                              {dept.is_service_department === 1 && (
-                                <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
-                                  สอนช่วย
-                                </span>
+                            <div className="flex items-center justify-between gap-1.5">
+                              <div className="flex items-center space-x-1.5 truncate">
+                                <span>{dept.department_name}</span>
+                                {dept.is_service_department === 1 && (
+                                  <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                    สอนช่วย
+                                  </span>
+                                )}
+                              </div>
+                              {onDownloadPdf && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDownloadPdf(String(dept.department_id));
+                                  }}
+                                  className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors shrink-0 cursor-pointer"
+                                  title={`พิมพ์รายงาน PDF แผนก${dept.department_name}`}
+                                >
+                                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                                </button>
                               )}
                             </div>
                           </td>

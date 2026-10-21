@@ -212,10 +212,11 @@ export function App() {
   };
 
   // PDF Report Download
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = (departmentIdOverride?: string) => {
     if (!selectedTerm) return;
+    const deptId = departmentIdOverride !== undefined ? departmentIdOverride : selectedDepartmentId;
     const calcParam = calculationType === 'ALL' ? 'all' : calculationType;
-    const url = `/api/v1/reports/pdf?term_id=${selectedTerm.id}&department_id=${selectedDepartmentId}&calculation_type=${calcParam}`;
+    const url = `/api/v1/reports/pdf?term_id=${selectedTerm.id}&department_id=${deptId}&calculation_type=${calcParam}`;
     window.open(url, '_blank');
   };
 
