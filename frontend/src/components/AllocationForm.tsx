@@ -92,6 +92,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
         existing.shares?.map((s) => ({
           target_department_id: s.target_department_id,
           share_amount: Number(s.share_amount),
+          teaching_hours: s.teaching_hours !== undefined && s.teaching_hours !== null ? Number(s.teaching_hours) : undefined,
           remark: s.remark || ''
         })) || []
       );
@@ -159,6 +160,26 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
   const netDepartmentBudget = baseBudget - totalShares;
   const isOverBudget = totalShares > baseBudget;
 
+  // Auto-recalculate shares for REGULAR when baseBudget or practiceNum changes
+  useEffect(() => {
+    if (selectedCalcType === 'REGULAR' && practiceNum > 0 && baseBudget > 0) {
+      setShares((prev) => {
+        let changed = false;
+        const updated = prev.map((s) => {
+          if (s.teaching_hours !== undefined && s.teaching_hours !== null && Number(s.teaching_hours) > 0) {
+            const newAmount = Math.round(((baseBudget * Number(s.teaching_hours)) / practiceNum) * 100) / 100;
+            if (newAmount !== s.share_amount) {
+              changed = true;
+              return { ...s, share_amount: newAmount };
+            }
+          }
+          return s;
+        });
+        return changed ? updated : prev;
+      });
+    }
+  }, [baseBudget, practiceNum, selectedCalcType]);
+
   // Selected Group's Department
   const selectedGroup = classGroups.find((g) => g.id === Number(selectedGroupId));
 
@@ -188,6 +209,7 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
       {
         target_department_id: availableTargetDepts[0].id,
         share_amount: 0,
+        teaching_hours: selectedCalcType === 'REGULAR' ? 0 : undefined,
         remark: ''
       }
     ]);
@@ -665,7 +687,9 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
                   ปันส่วนงบประมาณให้แผนกสอนช่วย (INTER-DEPT SHARES)
                 </h3>
                 <p className="text-[10px] text-slate-500">
-                  แผนกต้นทางจะถูกหักจ่าย (-) และแผนกปลายทางจะได้รับโอน (+)
+                  {selectedCalcType === 'REGULAR'
+                    ? 'สูตรคำนวณภาคปกติ: ยอดรวม × ชั่วโมงที่ช่วยสอน ÷ ชั่วโมงปฏิบัติ'
+                    : 'แผนกต้นทางจะถูกหักจ่าย (-) และแผนกปลายทางจะได้รับโอน (+)'}
                 </p>
               </div>
               {!isReadOnly && (
@@ -681,78 +705,142 @@ export const AllocationForm: React.FC<AllocationFormProps> = ({
               )}
             </div>
 
+            {selectedCalcType === 'REGULAR' && practiceNum <= 0 && shares.length > 0 && (
+              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>กรุณาระบุ <strong>ชม.ฝึกปฏิบัติ</strong> ด้านบน เพื่อให้ระบบคำนวณงบปันส่วนตามสูตรได้ถูกต้อง</span>
+              </div>
+            )}
+
             {shares.length === 0 ? (
               <div className="text-center py-4 px-2 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 text-slate-400 text-xs">
                 ไม่มีรายการปันส่วนวิชาสอนช่วยสำหรับกลุ่มนี้
               </div>
             ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {shares.map((share, index) => (
-                  <div
-                    key={index}
-                    className="p-3 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <select
-                        value={share.target_department_id}
-                        onChange={(e) =>
-                          handleShareChange(
-                            index,
-                            'target_department_id',
-                            Number(e.target.value)
-                          )
-                        }
-                        disabled={isReadOnly}
-                        className="flex-1 bg-white border border-slate-300 rounded p-1.5 text-xs text-slate-800 font-medium"
-                      >
-                        {availableTargetDepts.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name} {d.is_service_department ? '(แผนกบริการ)' : ''}
-                          </option>
-                        ))}
-                      </select>
+              <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                {shares.map((share, index) => {
+                  const isRegular = selectedCalcType === 'REGULAR';
+                  const teachingHrs = Number(share.teaching_hours || 0);
 
-                      <div className="w-24 sm:w-28 relative shrink-0">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0.00"
-                          value={share.share_amount || ''}
-                          onChange={(e) =>
-                            handleShareChange(
-                              index,
-                              'share_amount',
-                              parseFloat(e.target.value) || 0
-                            )
-                          }
-                          disabled={isReadOnly}
-                          className="w-full bg-white border border-slate-300 rounded p-1.5 text-right font-semibold text-slate-800 tabular-nums text-xs"
-                        />
+                  return (
+                    <div
+                      key={index}
+                      className="p-3 bg-slate-50/90 rounded-xl border border-slate-200 space-y-2 text-xs transition-all hover:border-slate-300"
+                    >
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <div className={isRegular ? "col-span-12 sm:col-span-5" : "col-span-12 sm:col-span-7"}>
+                          <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
+                            แผนกวิชาที่ช่วยสอน
+                          </label>
+                          <select
+                            value={share.target_department_id}
+                            onChange={(e) =>
+                              handleShareChange(
+                                index,
+                                'target_department_id',
+                                Number(e.target.value)
+                              )
+                            }
+                            disabled={isReadOnly}
+                            className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                          >
+                            {availableTargetDepts.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name} {d.is_service_department ? '(แผนกบริการ)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {isRegular && (
+                          <div className="col-span-6 sm:col-span-3">
+                            <label className="block text-[10px] font-bold text-indigo-700 mb-0.5">
+                              ชม.ที่ช่วยสอน <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              placeholder="0"
+                              value={share.teaching_hours !== undefined && share.teaching_hours !== null ? share.teaching_hours : ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? '' : parseFloat(e.target.value) || 0;
+                                const hrs = typeof val === 'number' ? val : 0;
+                                const calcAmt = (practiceNum > 0 && hrs > 0)
+                                  ? Math.round(((baseBudget * hrs) / practiceNum) * 100) / 100
+                                  : 0;
+                                const updated = [...shares];
+                                updated[index] = {
+                                  ...updated[index],
+                                  teaching_hours: val === '' ? undefined : hrs,
+                                  share_amount: calcAmt
+                                };
+                                setShares(updated);
+                              }}
+                              disabled={isReadOnly}
+                              className="w-full bg-white border border-indigo-200 text-indigo-900 rounded-lg p-1.5 text-right font-bold tabular-nums text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            />
+                          </div>
+                        )}
+
+                        <div className={isRegular ? "col-span-4 sm:col-span-3" : "col-span-10 sm:col-span-4"}>
+                          <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
+                            ยอดปันส่วน (บาท)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            value={share.share_amount || ''}
+                            onChange={(e) =>
+                              handleShareChange(
+                                index,
+                                'share_amount',
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            disabled={isReadOnly}
+                            className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-right font-bold text-blue-700 tabular-nums text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                          />
+                        </div>
+
+                        {!isReadOnly && (
+                          <div className={isRegular ? "col-span-2 sm:col-span-1 flex justify-end pt-3 sm:pt-4" : "col-span-2 sm:col-span-1 flex justify-end pt-3 sm:pt-4"}>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveShare(index)}
+                              className="p-1 sm:p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                              title="ลบรายการปันส่วน"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      {!isReadOnly && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveShare(index)}
-                          className="p-1 sm:p-1.5 text-slate-400 hover:text-red-600 rounded transition-colors cursor-pointer shrink-0"
-                          title="ลบรายการปันส่วน"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      {isRegular && (
+                        <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 font-mono">
+                          <span>
+                            คำนวณ: {baseBudget.toLocaleString()} บ. × {teachingHrs} ชม. ÷ {practiceNum || 0} ชม.
+                          </span>
+                          <span className="font-bold text-indigo-700">
+                            = {Number(share.share_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} บาท
+                          </span>
+                        </div>
                       )}
-                    </div>
 
-                    <input
-                      type="text"
-                      placeholder="หมายเหตุ / รหัสหรือชื่อวิชาสอนช่วย เช่น งานเชื่อมเบื้องต้น"
-                      value={share.remark || ''}
-                      onChange={(e) => handleShareChange(index, 'remark', e.target.value)}
-                      disabled={isReadOnly}
-                      className="text-xs bg-white border border-slate-300 rounded p-1.5 w-full text-slate-700"
-                    />
-                  </div>
-                ))}
+                      <input
+                        type="text"
+                        placeholder="หมายเหตุ / รหัสหรือชื่อวิชาสอนช่วย เช่น งานเชื่อมเบื้องต้น"
+                        value={share.remark || ''}
+                        onChange={(e) => handleShareChange(index, 'remark', e.target.value)}
+                        disabled={isReadOnly}
+                        className="text-xs bg-white border border-slate-300 rounded-lg p-1.5 w-full text-slate-700 placeholder:text-slate-400 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

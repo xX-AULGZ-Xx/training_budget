@@ -51,6 +51,7 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
         allocation.shares?.map((s) => ({
           target_department_id: s.target_department_id,
           share_amount: Number(s.share_amount),
+          teaching_hours: s.teaching_hours !== undefined && s.teaching_hours !== null ? Number(s.teaching_hours) : undefined,
           remark: s.remark || ''
         })) || []
       );
@@ -59,8 +60,6 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
     }
   }, [allocation]);
 
-  if (!isOpen || !allocation) return null;
-
   const isShortCourse = calculationType === 'SHORT_COURSE';
 
   // Reactive calculations
@@ -68,6 +67,29 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
     0,
     isShortCourse && practiceHours > 0 ? (studentCount || 0) * (practiceHours || 0) * (ratePerHead || 0) : (studentCount || 0) * (ratePerHead || 0)
   );
+
+  // Auto-recalculate shares for REGULAR when baseBudget or practiceHours changes
+  useEffect(() => {
+    if (calculationType === 'REGULAR' && practiceHours > 0 && baseBudget > 0) {
+      setShares((prev) => {
+        let changed = false;
+        const updated = prev.map((s) => {
+          if (s.teaching_hours !== undefined && s.teaching_hours !== null && Number(s.teaching_hours) > 0) {
+            const newAmount = Math.round(((baseBudget * Number(s.teaching_hours)) / practiceHours) * 100) / 100;
+            if (newAmount !== s.share_amount) {
+              changed = true;
+              return { ...s, share_amount: newAmount };
+            }
+          }
+          return s;
+        });
+        return changed ? updated : prev;
+      });
+    }
+  }, [baseBudget, practiceHours, calculationType]);
+
+  if (!isOpen || !allocation) return null;
+
   const totalShares = shares.reduce((acc, curr) => acc + (Number(curr.share_amount) || 0), 0);
   const remainingBudget = baseBudget - totalShares;
   const isOverBudget = totalShares > baseBudget;
@@ -82,6 +104,7 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
       {
         target_department_id: availableTargetDepts[0].id,
         share_amount: 0,
+        teaching_hours: calculationType === 'REGULAR' ? 0 : undefined,
         remark: ''
       }
     ]);
@@ -147,7 +170,14 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
           total_practice_hours: Number(practiceHours),
           rate_per_head: Number(ratePerHead),
           created_by: createdBy,
-          shares: shares.filter((s) => s.share_amount > 0)
+          shares: shares
+            .filter((s) => s.share_amount > 0)
+            .map((s) => ({
+              target_department_id: s.target_department_id,
+              share_amount: s.share_amount,
+              teaching_hours: s.teaching_hours !== undefined && s.teaching_hours !== null ? Number(s.teaching_hours) : null,
+              remark: s.remark || null
+            }))
         })
       });
 
@@ -438,11 +468,18 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
           </div>
 
           {/* Inter-Department Shares */}
-          <div className="pt-2 border-t border-slate-200">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                ปันส่วนงบประมาณให้แผนกสอนช่วย
-              </h4>
+          <div className="pt-2 border-t border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  ปันส่วนงบประมาณให้แผนกสอนช่วย
+                </h4>
+                <p className="text-[10px] text-slate-500">
+                  {calculationType === 'REGULAR'
+                    ? 'สูตรคำนวณภาคปกติ: ยอดรวม × ชั่วโมงที่ช่วยสอน ÷ ชั่วโมงปฏิบัติ'
+                    : 'แผนกต้นทางจะถูกหักจ่าย (-) และแผนกปลายทางจะได้รับโอน (+)'}
+                </p>
+              </div>
               {!isReadOnly && (
                 <button
                   type="button"
@@ -455,70 +492,134 @@ export const EditAllocationModal: React.FC<EditAllocationModalProps> = ({
               )}
             </div>
 
+            {calculationType === 'REGULAR' && practiceHours <= 0 && shares.length > 0 && (
+              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>กรุณาระบุ <strong>ชม.ฝึกปฏิบัติ</strong> ด้านบน เพื่อให้ระบบคำนวณงบปันส่วนตามสูตรได้ถูกต้อง</span>
+              </div>
+            )}
+
             {shares.length === 0 ? (
               <p className="text-center py-3 text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-lg">
                 ไม่มีรายการปันส่วนสอนช่วย
               </p>
             ) : (
-              <div className="space-y-2">
-                {shares.map((share, index) => (
-                  <div
-                    key={index}
-                    className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex flex-col gap-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1">
-                        <select
-                          value={share.target_department_id}
-                          onChange={(e) =>
-                            handleShareChange(index, 'target_department_id', Number(e.target.value))
-                          }
-                          disabled={isReadOnly}
-                          className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:ring-1 focus:ring-blue-500"
-                        >
-                          {availableTargetDepts.map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name} {d.is_service_department ? '(สอนช่วย)' : ''}
-                            </option>
-                          ))}
-                        </select>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {shares.map((share, index) => {
+                  const isRegular = calculationType === 'REGULAR';
+                  const teachingHrs = Number(share.teaching_hours || 0);
+
+                  return (
+                    <div
+                      key={index}
+                      className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2 text-xs"
+                    >
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <div className={isRegular ? "col-span-12 sm:col-span-5" : "col-span-12 sm:col-span-7"}>
+                          <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
+                            แผนกวิชาที่ช่วยสอน
+                          </label>
+                          <select
+                            value={share.target_department_id}
+                            onChange={(e) =>
+                              handleShareChange(index, 'target_department_id', Number(e.target.value))
+                            }
+                            disabled={isReadOnly}
+                            className="w-full text-xs bg-white border border-slate-300 rounded p-1.5 focus:ring-1 focus:ring-blue-500"
+                          >
+                            {availableTargetDepts.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name} {d.is_service_department ? '(สอนช่วย)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {isRegular && (
+                          <div className="col-span-6 sm:col-span-3">
+                            <label className="block text-[10px] font-bold text-indigo-700 mb-0.5">
+                              ชม.ที่ช่วยสอน <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              placeholder="0"
+                              value={share.teaching_hours !== undefined && share.teaching_hours !== null ? share.teaching_hours : ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? '' : parseFloat(e.target.value) || 0;
+                                const hrs = typeof val === 'number' ? val : 0;
+                                const calcAmt = (practiceHours > 0 && hrs > 0)
+                                  ? Math.round(((baseBudget * hrs) / practiceHours) * 100) / 100
+                                  : 0;
+                                const updated = [...shares];
+                                updated[index] = {
+                                  ...updated[index],
+                                  teaching_hours: val === '' ? undefined : hrs,
+                                  share_amount: calcAmt
+                                };
+                                setShares(updated);
+                              }}
+                              disabled={isReadOnly}
+                              className="w-full text-xs text-right bg-white border border-indigo-200 text-indigo-900 font-bold rounded p-1.5 focus:ring-2 focus:ring-indigo-500"
+                            />
+                          </div>
+                        )}
+
+                        <div className={isRegular ? "col-span-4 sm:col-span-3" : "col-span-10 sm:col-span-4"}>
+                          <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
+                            ยอดปันส่วน (บาท)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            value={share.share_amount || ''}
+                            onChange={(e) =>
+                              handleShareChange(index, 'share_amount', parseFloat(e.target.value) || 0)
+                            }
+                            disabled={isReadOnly}
+                            className="w-full text-xs text-right bg-white border border-slate-300 rounded p-1.5 font-bold text-blue-700"
+                          />
+                        </div>
+
+                        {!isReadOnly && (
+                          <div className="col-span-2 sm:col-span-1 flex justify-end pt-3 sm:pt-4">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveShare(index)}
+                              className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
+                              title="ลบรายการปันส่วน"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="w-32">
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="จำนวนเงิน"
-                          value={share.share_amount || ''}
-                          onChange={(e) =>
-                            handleShareChange(index, 'share_amount', parseFloat(e.target.value) || 0)
-                          }
-                          disabled={isReadOnly}
-                          className="w-full text-xs text-right bg-white border border-slate-300 rounded p-1.5 font-medium text-slate-900"
-                        />
-                      </div>
-
-                      {!isReadOnly && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveShare(index)}
-                          className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      {isRegular && (
+                        <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-600 bg-white px-2 py-1 rounded border border-slate-200 font-mono">
+                          <span>
+                            คำนวณ: {baseBudget.toLocaleString()} บ. × {teachingHrs} ชม. ÷ {practiceHours || 0} ชม.
+                          </span>
+                          <span className="font-bold text-indigo-700">
+                            = {Number(share.share_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} บาท
+                          </span>
+                        </div>
                       )}
-                    </div>
 
-                    <input
-                      type="text"
-                      placeholder="หมายเหตุ / วิชาสอนช่วย"
-                      value={share.remark || ''}
-                      onChange={(e) => handleShareChange(index, 'remark', e.target.value)}
-                      disabled={isReadOnly}
-                      className="text-xs bg-white border border-slate-300 rounded p-1.5 w-full text-slate-700"
-                    />
-                  </div>
-                ))}
+                      <input
+                        type="text"
+                        placeholder="หมายเหตุ / วิชาสอนช่วย เช่น งานเชื่อมและโลหะแผ่นเบื้องต้น"
+                        value={share.remark || ''}
+                        onChange={(e) => handleShareChange(index, 'remark', e.target.value)}
+                        disabled={isReadOnly}
+                        className="text-xs bg-white border border-slate-300 rounded p-1.5 w-full text-slate-700"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

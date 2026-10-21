@@ -870,14 +870,20 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
                           <td className="py-2.5 sm:py-3 px-3">
                             {alloc.shares && alloc.shares.length > 0 ? (
                               <div className="space-y-1">
-                                {alloc.shares.map((s, idx) => (
-                                  <div key={idx} className="text-[11px] flex items-center justify-between text-slate-700 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-200/60">
-                                    <span>{s.target_department_name} ({s.remark || 'สอนช่วย'}):</span>
-                                    <span className="font-bold text-amber-900 ml-2 tabular-nums">
-                                      {Number(s.share_amount).toLocaleString()} ฿
-                                    </span>
-                                  </div>
-                                ))}
+                                {alloc.shares.map((s, idx) => {
+                                  const teachingHrs = s.teaching_hours !== undefined && s.teaching_hours !== null && Number(s.teaching_hours) > 0
+                                    ? `${Number(s.teaching_hours)} ชม.`
+                                    : null;
+                                  const detail = [teachingHrs, s.remark].filter(Boolean).join(' - ') || 'สอนช่วย';
+                                  return (
+                                    <div key={idx} className="text-[11px] flex items-center justify-between text-slate-700 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-200/60">
+                                      <span>{s.target_department_name} ({detail}):</span>
+                                      <span className="font-bold text-amber-900 ml-2 tabular-nums">
+                                        {Number(s.share_amount).toLocaleString()} ฿
+                                      </span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             ) : (
                               <span className="text-slate-400 italic text-[11px]">ไม่มีการปันส่วน</span>

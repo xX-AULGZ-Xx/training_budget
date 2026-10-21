@@ -35,8 +35,10 @@ export interface ClassGroup {
 export interface ShareItem {
   target_department_id: number;
   share_amount: number;
+  teaching_hours?: number;
   remark?: string;
   target_department_name?: string;
+  target_department_code?: string;
 }
 
 export type CalculationType = 'REGULAR' | 'SPECIAL_SUPPLEMENTARY' | 'DUAL_EDUCATION' | 'SHORT_COURSE';

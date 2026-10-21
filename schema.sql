@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS `inter_department_shares` (
     `source_department_id` INT UNSIGNED NOT NULL,
     `target_department_id` INT UNSIGNED NOT NULL,
     `share_amount` DECIMAL(12, 2) NOT NULL,
+    `teaching_hours` DECIMAL(6, 2) NULL DEFAULT 0.00,
     `remark` VARCHAR(255) NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `fk_share_alloc` FOREIGN KEY (`allocation_id`) REFERENCES `budget_allocations` (`id`) ON DELETE CASCADE,

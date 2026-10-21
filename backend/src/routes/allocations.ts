@@ -8,6 +8,7 @@ const router = Router();
 const shareSchema = z.object({
   target_department_id: z.number().int().positive(),
   share_amount: z.number().nonnegative(),
+  teaching_hours: z.number().nonnegative().optional().nullable(),
   remark: z.string().optional().nullable()
 });
 
@@ -97,6 +98,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
           s.source_department_id,
           s.target_department_id,
           s.share_amount,
+          s.teaching_hours,
           s.remark,
           td.name as target_department_name,
           td.code as target_department_code
@@ -286,9 +288,16 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       if (share.share_amount > 0) {
         await conn.query(
           `INSERT INTO inter_department_shares 
-           (allocation_id, source_department_id, target_department_id, share_amount, remark)
-           VALUES (?, ?, ?, ?, ?)`,
-          [allocationId, sourceDepartmentId, share.target_department_id, share.share_amount, share.remark || null]
+           (allocation_id, source_department_id, target_department_id, share_amount, teaching_hours, remark)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            allocationId,
+            sourceDepartmentId,
+            share.target_department_id,
+            share.share_amount,
+            share.teaching_hours !== undefined && share.teaching_hours !== null ? share.teaching_hours : null,
+            share.remark || null
+          ]
         );
       }
     }
@@ -450,9 +459,16 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
         if (Number(share.share_amount) > 0) {
           await conn.query(
             `INSERT INTO inter_department_shares 
-             (allocation_id, source_department_id, target_department_id, share_amount, remark)
-             VALUES (?, ?, ?, ?, ?)`,
-            [id, finalDeptId, share.target_department_id, share.share_amount, share.remark || null]
+             (allocation_id, source_department_id, target_department_id, share_amount, teaching_hours, remark)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              id,
+              finalDeptId,
+              share.target_department_id,
+              share.share_amount,
+              share.teaching_hours !== undefined && share.teaching_hours !== null ? share.teaching_hours : null,
+              share.remark || null
+            ]
           );
         }
       }
