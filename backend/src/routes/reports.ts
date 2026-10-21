@@ -118,29 +118,53 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
           COALESCE(trans.total_transferred, 0.00) AS total_transferred,
           (COALESCE(base.total_base_budget, 0.00) 
            - COALESCE(deduct.total_deducted, 0.00) 
-           + COALESCE(trans.total_transferred, 0.00)) AS net_budget
+           + COALESCE(trans.total_transferred, 0.00)) AS net_budget,
+          (COALESCE(base.base_voc, 0.00)
+           - COALESCE(deduct.deduct_voc, 0.00) 
+           + COALESCE(trans.trans_voc, 0.00)) AS net_voc,
+          (COALESCE(base.base_high_voc, 0.00)
+           - COALESCE(deduct.deduct_high_voc, 0.00) 
+           + COALESCE(trans.trans_high_voc, 0.00)) AS net_high_voc,
+          (COALESCE(base.base_prison, 0.00)
+           - COALESCE(deduct.deduct_prison, 0.00) 
+           + COALESCE(trans.trans_prison, 0.00)) AS net_prison
       FROM departments d
       LEFT JOIN (
           SELECT 
             COALESCE(ba.department_id, cg.department_id) AS department_id, 
             SUM(ba.student_count) AS student_count, 
-            SUM(ba.base_budget) AS total_base_budget
+            SUM(ba.base_budget) AS total_base_budget,
+            SUM(CASE WHEN cg.education_level_id = 1 THEN ba.base_budget ELSE 0 END) AS base_voc,
+            SUM(CASE WHEN cg.education_level_id = 2 THEN ba.base_budget ELSE 0 END) AS base_high_voc,
+            SUM(CASE WHEN cg.education_level_id = 3 THEN ba.base_budget ELSE 0 END) AS base_prison
           FROM budget_allocations ba
           LEFT JOIN class_groups cg ON ba.class_group_id = cg.id
           WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY COALESCE(ba.department_id, cg.department_id)
       ) base ON d.id = base.department_id
       LEFT JOIN (
-          SELECT s.source_department_id, SUM(s.share_amount) AS total_deducted
+          SELECT 
+            s.source_department_id, 
+            SUM(s.share_amount) AS total_deducted,
+            SUM(CASE WHEN cg.education_level_id = 1 THEN s.share_amount ELSE 0 END) AS deduct_voc,
+            SUM(CASE WHEN cg.education_level_id = 2 THEN s.share_amount ELSE 0 END) AS deduct_high_voc,
+            SUM(CASE WHEN cg.education_level_id = 3 THEN s.share_amount ELSE 0 END) AS deduct_prison
           FROM inter_department_shares s
           JOIN budget_allocations ba ON s.allocation_id = ba.id
+          LEFT JOIN class_groups cg ON ba.class_group_id = cg.id
           WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY s.source_department_id
       ) deduct ON d.id = deduct.source_department_id
       LEFT JOIN (
-          SELECT s.target_department_id, SUM(s.share_amount) AS total_transferred
+          SELECT 
+            s.target_department_id, 
+            SUM(s.share_amount) AS total_transferred,
+            SUM(CASE WHEN cg.education_level_id = 1 THEN s.share_amount ELSE 0 END) AS trans_voc,
+            SUM(CASE WHEN cg.education_level_id = 2 THEN s.share_amount ELSE 0 END) AS trans_high_voc,
+            SUM(CASE WHEN cg.education_level_id = 3 THEN s.share_amount ELSE 0 END) AS trans_prison
           FROM inter_department_shares s
           JOIN budget_allocations ba ON s.allocation_id = ba.id
+          LEFT JOIN class_groups cg ON ba.class_group_id = cg.id
           WHERE ba.academic_term_id = ? ${calcCondition}
           GROUP BY s.target_department_id
       ) trans ON d.id = trans.target_department_id
@@ -307,13 +331,16 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
         doc.text('รับโอน (+)', 595, topY + 2, { width: 95, align: 'right' });
         doc.text(`งบสุทธิ ${calcLabel}`, 700, topY + 2, { width: 100, align: 'right' });
       } else {
-        doc.text('รหัสแผนก', 42, topY + 2);
-        doc.text('ชื่อแผนกวิชา', 105, topY + 2);
-        doc.text('นักเรียน (คน)', 345, topY + 2, { width: 85, align: 'right' });
-        doc.text('งบตั้งต้น (บาท)', 440, topY + 2, { width: 100, align: 'right' });
-        doc.text('หักปันส่วน (-)', 550, topY + 2, { width: 80, align: 'right' });
-        doc.text('รับโอน (+)', 640, topY + 2, { width: 75, align: 'right' });
-        doc.text('งบสุทธิคงเหลือ', 720, topY + 2, { width: 80, align: 'right' });
+        doc.text('รหัส', 42, topY + 2);
+        doc.text('ชื่อแผนกวิชา', 86, topY + 2);
+        doc.text('นักเรียน', 243, topY + 2, { width: 42, align: 'right' });
+        doc.text('งบตั้งต้น', 287, topY + 2, { width: 68, align: 'right' });
+        doc.text('หักปันส่วน', 357, topY + 2, { width: 58, align: 'right' });
+        doc.text('รับโอน', 417, topY + 2, { width: 53, align: 'right' });
+        doc.text('งบ ปวช.', 472, topY + 2, { width: 68, align: 'right' });
+        doc.text('งบ ปวส.', 542, topY + 2, { width: 68, align: 'right' });
+        doc.text('งบ เรือนจำ', 612, topY + 2, { width: 66, align: 'right' });
+        doc.text('งบสุทธิคงเหลือ', 680, topY + 2, { width: 122, align: 'right' });
       }
 
       doc.moveTo(36, topY + 18).lineTo(805, topY + 18).stroke('#cbd5e1');
@@ -330,6 +357,9 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
     let totalDeduct = 0;
     let totalTrans = 0;
     let totalNet = 0;
+    let totalVoc = 0;
+    let totalHighVoc = 0;
+    let totalPrison = 0;
 
     if (displayedDepartments.length === 0) {
       doc.rect(36, currentY - 2, 769, 22).fill('#f8fafc');
@@ -353,19 +383,25 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
         const deducted = Number(dept.total_deducted || 0);
         const transferred = Number(dept.total_transferred || 0);
         const net = Number(dept.net_budget || 0);
+        const nVoc = Number(dept.net_voc || 0);
+        const nHighVoc = Number(dept.net_high_voc || 0);
+        const nPrison = Number(dept.net_prison || 0);
 
         totalStudents += students;
         totalBase += base;
         totalDeduct += deducted;
         totalTrans += transferred;
         totalNet += net;
+        totalVoc += nVoc;
+        totalHighVoc += nHighVoc;
+        totalPrison += nPrison;
 
         // Alternating row background
         if (index % 2 === 1) {
           doc.rect(36, currentY - 2, 769, 16).fill('#f8fafc');
         }
         doc.fillColor('#1e293b');
-        doc.fontSize(10);
+        doc.fontSize(9.5);
 
         if (isSpecial) {
           doc.text(dept.department_name || '', 42, currentY, { width: 230, ellipsis: true });
@@ -375,13 +411,16 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
           doc.text(transferred > 0 ? transferred.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 595, currentY, { width: 95, align: 'right' });
           doc.text(net.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 700, currentY, { width: 100, align: 'right' });
         } else {
-          doc.text(dept.department_code || '', 42, currentY);
-          doc.text(dept.department_name || '', 105, currentY, { width: 230, ellipsis: true });
-          doc.text(students > 0 ? students.toLocaleString() : '-', 345, currentY, { width: 85, align: 'right' });
-          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 440, currentY, { width: 100, align: 'right' });
-          doc.text(deducted > 0 ? deducted.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 550, currentY, { width: 80, align: 'right' });
-          doc.text(transferred > 0 ? transferred.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 640, currentY, { width: 75, align: 'right' });
-          doc.text(net.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 720, currentY, { width: 80, align: 'right' });
+          doc.text(dept.department_code || '', 42, currentY, { width: 42, ellipsis: true });
+          doc.text(dept.department_name || '', 86, currentY, { width: 155, ellipsis: true });
+          doc.text(students > 0 ? students.toLocaleString() : '-', 243, currentY, { width: 42, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 287, currentY, { width: 68, align: 'right' });
+          doc.text(deducted > 0 ? deducted.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 357, currentY, { width: 58, align: 'right' });
+          doc.text(transferred > 0 ? transferred.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 417, currentY, { width: 53, align: 'right' });
+          doc.text(nVoc > 0 ? nVoc.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 472, currentY, { width: 68, align: 'right' });
+          doc.text(nHighVoc > 0 ? nHighVoc.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 542, currentY, { width: 68, align: 'right' });
+          doc.text(nPrison > 0 ? nPrison.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-', 612, currentY, { width: 66, align: 'right' });
+          doc.text(net.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 680, currentY, { width: 122, align: 'right' });
         }
 
         currentY += 17;
@@ -392,7 +431,7 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
       currentY += 4;
       doc.rect(36, currentY - 2, 769, 19).fill('#e2e8f0');
       doc.fillColor('#0f172a');
-      doc.font(fontBold).fontSize(10.5);
+      doc.font(fontBold).fontSize(10);
 
       if (isSpecial) {
         doc.text(`รวมทั้งสิ้น (${displayedDepartments.length} แผนก)`, 42, currentY + 2);
@@ -402,12 +441,15 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
         doc.text(totalTrans.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 595, currentY + 2, { width: 95, align: 'right' });
         doc.text(totalNet.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 700, currentY + 2, { width: 100, align: 'right' });
       } else {
-        doc.text('รวมทั้งสิ้น (TOTAL SUMMARY)', 105, currentY + 2);
-        doc.text(totalStudents.toLocaleString(), 345, currentY + 2, { width: 85, align: 'right' });
-        doc.text(totalBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 440, currentY + 2, { width: 100, align: 'right' });
-        doc.text(totalDeduct.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 550, currentY + 2, { width: 80, align: 'right' });
-        doc.text(totalTrans.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 640, currentY + 2, { width: 75, align: 'right' });
-        doc.text(totalNet.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 720, currentY + 2, { width: 80, align: 'right' });
+        doc.text('รวมทั้งสิ้น (TOTAL)', 86, currentY + 2);
+        doc.text(totalStudents.toLocaleString(), 243, currentY + 2, { width: 42, align: 'right' });
+        doc.text(totalBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 287, currentY + 2, { width: 68, align: 'right' });
+        doc.text(totalDeduct.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 357, currentY + 2, { width: 58, align: 'right' });
+        doc.text(totalTrans.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 417, currentY + 2, { width: 53, align: 'right' });
+        doc.text(totalVoc.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 472, currentY + 2, { width: 68, align: 'right' });
+        doc.text(totalHighVoc.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 542, currentY + 2, { width: 68, align: 'right' });
+        doc.text(totalPrison.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 612, currentY + 2, { width: 66, align: 'right' });
+        doc.text(totalNet.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 680, currentY + 2, { width: 122, align: 'right' });
       }
       currentY += 21;
     }
