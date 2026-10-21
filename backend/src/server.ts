@@ -8,6 +8,7 @@ import allocationsRouter from './routes/allocations';
 import summaryRouter from './routes/summary';
 import reportsRouter from './routes/reports';
 import settingsRouter from './routes/settings';
+import { ensureDatabaseSchema } from './config/db';
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Training Budget Server running on http://localhost:${PORT}`);
+  await ensureDatabaseSchema();
 });
