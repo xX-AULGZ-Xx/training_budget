@@ -171,6 +171,7 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
           ba.school_name,
           ba.course_name,
           ba.student_count,
+          ba.total_practice_hours,
           ba.rate_per_head,
           ba.base_budget,
           COALESCE(d.code, '') AS department_code,
@@ -194,6 +195,44 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
     allocQuery += ' ORDER BY d.id ASC, ba.id ASC';
 
     const [allocations] = await pool.query<RowDataPacket[]>(allocQuery, allocParams);
+
+    // Fetch shares for itemized allocations
+    if (allocations.length > 0) {
+      const allocIds = allocations.map((a) => a.id);
+      const [shares] = await pool.query<RowDataPacket[]>(
+        `
+        SELECT 
+          s.id,
+          s.allocation_id,
+          s.source_department_id,
+          s.target_department_id,
+          s.share_amount,
+          s.teaching_hours,
+          s.remark,
+          td.name as target_department_name,
+          td.code as target_department_code
+        FROM inter_department_shares s
+        JOIN departments td ON s.target_department_id = td.id
+        WHERE s.allocation_id IN (?)
+        ORDER BY s.id ASC
+        `,
+        [allocIds]
+      );
+
+      const sharesByAlloc: Record<number, any[]> = {};
+      shares.forEach((s) => {
+        if (!sharesByAlloc[s.allocation_id]) {
+          sharesByAlloc[s.allocation_id] = [];
+        }
+        sharesByAlloc[s.allocation_id].push(s);
+      });
+
+      allocations.forEach((a) => {
+        a.shares = sharesByAlloc[a.id] || [];
+        a.total_shares = (a.shares as any[]).reduce((sum, s) => sum + Number(s.share_amount), 0);
+        a.remaining_budget = Number(a.base_budget) - a.total_shares;
+      });
+    }
 
     // Filter departments for special calculation types
     const displayedDepartments = isSpecial
@@ -251,29 +290,33 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
     );
     doc.moveDown(0.3);
 
+    const drawDeptTableHeader = (topY: number) => {
+      doc.rect(36, topY - 3, 523, 20).fill('#f1f5f9');
+      doc.fillColor('#0f172a');
+      doc.font(fontBold).fontSize(10);
+
+      if (isSpecial) {
+        doc.text('แผนกวิชา', 42, topY + 2);
+        doc.text('จำนวนคน (คน)', 210, topY + 2, { width: 65, align: 'right' });
+        doc.text('งบตั้งต้น (+)', 280, topY + 2, { width: 70, align: 'right' });
+        doc.text('หักจ่าย (-)', 355, topY + 2, { width: 60, align: 'right' });
+        doc.text('รับโอน (+)', 420, topY + 2, { width: 60, align: 'right' });
+        doc.text(`งบสุทธิ ${calcLabel}`, 485, topY + 2, { width: 70, align: 'right' });
+      } else {
+        doc.text('รหัสแผนก', 42, topY + 2);
+        doc.text('ชื่อแผนกวิชา', 105, topY + 2);
+        doc.text('นักเรียน (คน)', 240, topY + 2, { width: 55, align: 'right' });
+        doc.text('งบตั้งต้น (บาท)', 305, topY + 2, { width: 75, align: 'right' });
+        doc.text('หักปันส่วน (-)', 385, topY + 2, { width: 55, align: 'right' });
+        doc.text('รับโอน (+)', 445, topY + 2, { width: 50, align: 'right' });
+        doc.text('งบสุทธิคงเหลือ', 500, topY + 2, { width: 55, align: 'right' });
+      }
+
+      doc.moveTo(36, topY + 18).lineTo(559, topY + 18).stroke('#cbd5e1');
+    };
+
     const tableTop = doc.y;
-    doc.rect(36, tableTop - 3, 523, 20).fill('#f1f5f9');
-    doc.fillColor('#0f172a');
-    doc.font(fontBold).fontSize(10);
-
-    if (isSpecial) {
-      doc.text('แผนกวิชา', 42, tableTop + 2);
-      doc.text('จำนวนคน (คน)', 210, tableTop + 2, { width: 65, align: 'right' });
-      doc.text('งบตั้งต้น (+)', 280, tableTop + 2, { width: 70, align: 'right' });
-      doc.text('หักจ่าย (-)', 355, tableTop + 2, { width: 60, align: 'right' });
-      doc.text('รับโอน (+)', 420, tableTop + 2, { width: 60, align: 'right' });
-      doc.text(`งบสุทธิ ${calcLabel}`, 485, tableTop + 2, { width: 70, align: 'right' });
-    } else {
-      doc.text('รหัสแผนก', 42, tableTop + 2);
-      doc.text('ชื่อแผนกวิชา', 105, tableTop + 2);
-      doc.text('นักเรียน (คน)', 240, tableTop + 2, { width: 55, align: 'right' });
-      doc.text('งบตั้งต้น (บาท)', 305, tableTop + 2, { width: 75, align: 'right' });
-      doc.text('หักปันส่วน (-)', 385, tableTop + 2, { width: 55, align: 'right' });
-      doc.text('รับโอน (+)', 445, tableTop + 2, { width: 50, align: 'right' });
-      doc.text('งบสุทธิคงเหลือ', 500, tableTop + 2, { width: 55, align: 'right' });
-    }
-
-    doc.moveTo(36, tableTop + 18).lineTo(559, tableTop + 18).stroke('#cbd5e1');
+    drawDeptTableHeader(tableTop);
 
     let currentY = tableTop + 24;
     doc.font(fontRegular);
@@ -297,6 +340,8 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
         if (currentY > 730) {
           doc.addPage();
           currentY = 40;
+          drawDeptTableHeader(currentY);
+          currentY += 24;
         }
 
         const students = Number(dept.student_count || 0);
@@ -374,121 +419,238 @@ router.get('/pdf', async (req: Request, res: Response): Promise<void> => {
       }
 
       doc.font(fontBold).fontSize(11).fillColor('#0f172a').text(
-        `2. รายละเอียดรายการจัดสรร (${calcLabel} - ทั้งหมด ${allocations.length} รายการ)`,
+        `2. ตารางกระทบยอดรายการจัดสรร / รายวิชา (${calcLabel} - ทั้งหมด ${allocations.length} รายการ)`,
         36,
         currentY
       );
       currentY += 16;
 
-      const allocTableTop = currentY;
-      doc.rect(36, allocTableTop - 3, 523, 20).fill('#e0e7ff');
-      doc.fillColor('#1e1b4b').font(fontBold).fontSize(9.5);
+      const drawAllocTableHeader = (topY: number) => {
+        doc.rect(36, topY - 3, 523, 20).fill('#e0e7ff');
+        doc.fillColor('#1e1b4b').font(fontBold).fontSize(9);
 
-      if (calcUpper === 'SPECIAL_SUPPLEMENTARY') {
-        doc.text('แผนกวิชา', 42, allocTableTop + 2);
-        doc.text('ชื่อรุ่น / กลุ่มเรียน', 180, allocTableTop + 2);
-        doc.text('จำนวนคน (คน)', 340, allocTableTop + 2, { width: 60, align: 'right' });
-        doc.text('เงินต่อหัว (บาท)', 405, allocTableTop + 2, { width: 70, align: 'right' });
-        doc.text('รวมเงินจัดสรร (บาท)', 480, allocTableTop + 2, { width: 75, align: 'right' });
-      } else if (calcUpper === 'DUAL_EDUCATION') {
-        doc.text('แผนกวิชา', 42, allocTableTop + 2);
-        doc.text('ขั้น', 165, allocTableTop + 2, { width: 45, align: 'center' });
-        doc.text('โรงเรียน / สถานศึกษา', 215, allocTableTop + 2);
-        doc.text('จำนวนคน', 350, allocTableTop + 2, { width: 55, align: 'right' });
-        doc.text('เงินต่อหัว', 410, allocTableTop + 2, { width: 65, align: 'right' });
-        doc.text('รวมจัดสรร (บาท)', 480, allocTableTop + 2, { width: 75, align: 'right' });
-      } else if (calcUpper === 'SHORT_COURSE') {
-        doc.text('แผนกวิชา', 42, allocTableTop + 2);
-        doc.text('โรงเรียน / หน่วยงาน', 155, allocTableTop + 2);
-        doc.text('รายวิชา', 290, allocTableTop + 2);
-        doc.text('คน', 400, allocTableTop + 2, { width: 45, align: 'right' });
-        doc.text('ต่อหัว (บาท)', 450, allocTableTop + 2, { width: 50, align: 'right' });
-        doc.text('รวม (บาท)', 505, allocTableTop + 2, { width: 50, align: 'right' });
-      } else {
-        doc.text('แผนกวิชา', 42, allocTableTop + 2);
-        doc.text('กลุ่มเรียน / รายการ', 175, allocTableTop + 2);
-        doc.text('ระดับ / ข้อมูล', 315, allocTableTop + 2, { width: 55, align: 'center' });
-        doc.text('จำนวนคน', 375, allocTableTop + 2, { width: 55, align: 'right' });
-        doc.text('เงินต่อหัว', 435, allocTableTop + 2, { width: 55, align: 'right' });
-        doc.text('รวมงบตั้งต้น', 495, allocTableTop + 2, { width: 60, align: 'right' });
-      }
+        if (calcUpper === 'SPECIAL_SUPPLEMENTARY') {
+          doc.text('แผนกวิชา', 42, topY + 2);
+          doc.text('ชื่อรุ่น', 196, topY + 2);
+          doc.text('จำนวนคน (คน)', 350, topY + 2, { width: 60, align: 'right' });
+          doc.text('เงินต่อหัว (บาท)', 414, topY + 2, { width: 65, align: 'right' });
+          doc.text('รวม (บาท)', 483, topY + 2, { width: 73, align: 'right' });
+        } else if (calcUpper === 'DUAL_EDUCATION') {
+          doc.text('แผนกวิชา', 42, topY + 2);
+          doc.text('ขั้น', 171, topY + 2, { width: 45, align: 'center' });
+          doc.text('โรงเรียน', 220, topY + 2);
+          doc.text('จำนวนคน (คน)', 360, topY + 2, { width: 55, align: 'right' });
+          doc.text('เงินต่อหัว (บาท)', 420, topY + 2, { width: 60, align: 'right' });
+          doc.text('รวม (บาท)', 484, topY + 2, { width: 72, align: 'right' });
+        } else if (calcUpper === 'SHORT_COURSE') {
+          doc.text('แผนกวิชา', 42, topY + 2);
+          doc.text('โรงเรียน / หน่วยงาน', 156, topY + 2);
+          doc.text('รายวิชา', 285, topY + 2);
+          doc.text('จำนวนคน (คน)', 399, topY + 2, { width: 45, align: 'right' });
+          doc.text('เงินต่อหัว (บาท)', 448, topY + 2, { width: 52, align: 'right' });
+          doc.text('รวม (บาท)', 504, topY + 2, { width: 52, align: 'right' });
+        } else if (calcUpper === 'REGULAR') {
+          doc.text('กลุ่มเรียน / แผนก', 38, topY + 2);
+          doc.text('ระดับ', 150, topY + 2, { width: 38, align: 'center' });
+          doc.text('จำนวน นร.', 190, topY + 2, { width: 38, align: 'right' });
+          doc.text('ชม.ฝึก', 230, topY + 2, { width: 36, align: 'right' });
+          doc.text('เงินต่อหัว (บ.)', 268, topY + 2, { width: 44, align: 'right' });
+          doc.text('งบตั้งต้น (บ.)', 314, topY + 2, { width: 58, align: 'right' });
+          doc.text('ปันส่วนสอนช่วย', 374, topY + 2);
+          doc.text('งบคงเหลือ (บ.)', 484, topY + 2, { width: 72, align: 'right' });
+        } else {
+          // ALL
+          doc.text('รายการ / แผนก', 38, topY + 2);
+          doc.text('ประเภท', 145, topY + 2, { width: 52, align: 'center' });
+          doc.text('ข้อมูลจำเพาะ', 200, topY + 2);
+          doc.text('จำนวนคน', 278, topY + 2, { width: 38, align: 'right' });
+          doc.text('เงินต่อหัว', 318, topY + 2, { width: 42, align: 'right' });
+          doc.text('งบตั้งต้น', 362, topY + 2, { width: 56, align: 'right' });
+          doc.text('ปันส่วนสอนช่วย', 420, topY + 2, { width: 64, align: 'right' });
+          doc.text('งบคงเหลือ', 486, topY + 2, { width: 70, align: 'right' });
+        }
 
-      doc.moveTo(36, allocTableTop + 18).lineTo(559, allocTableTop + 18).stroke('#a5b4fc');
-      currentY = allocTableTop + 23;
-      doc.font(fontRegular).fontSize(9.5);
+        doc.moveTo(36, topY + 18).lineTo(559, topY + 18).stroke('#a5b4fc');
+      };
+
+      drawAllocTableHeader(currentY);
+      currentY += 23;
 
       let sumAllocStudents = 0;
       let sumAllocBase = 0;
+      let sumAllocDeduct = 0;
+      let sumAllocNet = 0;
 
       allocations.forEach((alloc, index) => {
-        if (currentY > 730) {
-          doc.addPage();
-          currentY = 40;
-        }
-
         const count = Number(alloc.student_count || 0);
         const rate = Number(alloc.rate_per_head || 0);
         const base = Number(alloc.base_budget || 0);
+        const shares = (alloc.shares as any[]) || [];
+        const totalShares = Number(alloc.total_shares || 0);
+        const netRemain = Number(alloc.remaining_budget !== undefined ? alloc.remaining_budget : base);
 
         sumAllocStudents += count;
         sumAllocBase += base;
+        sumAllocDeduct += totalShares;
+        sumAllocNet += netRemain;
+
+        const rowHeight = calcUpper === 'REGULAR' && shares.length > 1
+          ? Math.max(22, shares.length * 10 + 6)
+          : (calcUpper === 'REGULAR' || calcUpper === 'ALL' ? 22 : 18);
+
+        if (currentY + rowHeight > 740) {
+          doc.addPage();
+          currentY = 40;
+          drawAllocTableHeader(currentY);
+          currentY += 23;
+        }
 
         if (index % 2 === 1) {
-          doc.rect(36, currentY - 2, 523, 16).fill('#f8fafc');
+          doc.rect(36, currentY - 2, 523, rowHeight).fill('#f8fafc');
         }
         doc.fillColor('#1e293b');
 
         if (calcUpper === 'SPECIAL_SUPPLEMENTARY') {
-          doc.text(alloc.department_name || '', 42, currentY, { width: 135, ellipsis: true });
-          doc.text(alloc.batch_name || alloc.group_name || '-', 180, currentY, { width: 155, ellipsis: true });
-          doc.text(count.toLocaleString(), 340, currentY, { width: 60, align: 'right' });
-          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 405, currentY, { width: 70, align: 'right' });
-          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 480, currentY, { width: 75, align: 'right' });
+          doc.font(fontRegular).fontSize(9);
+          doc.text(alloc.department_name || '', 42, currentY, { width: 150, ellipsis: true });
+          doc.text(alloc.batch_name || alloc.group_name || '-', 196, currentY, { width: 150, ellipsis: true });
+          doc.text(count.toLocaleString(), 350, currentY, { width: 60, align: 'right' });
+          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 414, currentY, { width: 65, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 483, currentY, { width: 73, align: 'right' });
         } else if (calcUpper === 'DUAL_EDUCATION') {
-          doc.text(alloc.department_name || '', 42, currentY, { width: 120, ellipsis: true });
-          doc.text(alloc.step_level || '-', 165, currentY, { width: 45, align: 'center' });
-          doc.text(alloc.school_name || '-', 215, currentY, { width: 130, ellipsis: true });
-          doc.text(count.toLocaleString(), 350, currentY, { width: 55, align: 'right' });
-          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 410, currentY, { width: 65, align: 'right' });
-          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 480, currentY, { width: 75, align: 'right' });
+          doc.font(fontRegular).fontSize(9);
+          doc.text(alloc.department_name || '', 42, currentY, { width: 125, ellipsis: true });
+          doc.text(alloc.step_level || '-', 171, currentY, { width: 45, align: 'center' });
+          doc.text(alloc.school_name || '-', 220, currentY, { width: 135, ellipsis: true });
+          doc.text(count.toLocaleString(), 360, currentY, { width: 55, align: 'right' });
+          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 420, currentY, { width: 60, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 484, currentY, { width: 72, align: 'right' });
         } else if (calcUpper === 'SHORT_COURSE') {
+          doc.font(fontRegular).fontSize(9);
           doc.text(alloc.department_name || '', 42, currentY, { width: 110, ellipsis: true });
-          doc.text(alloc.school_name || '-', 155, currentY, { width: 130, ellipsis: true });
-          doc.text(alloc.course_name || '-', 290, currentY, { width: 105, ellipsis: true });
-          doc.text(count.toLocaleString(), 400, currentY, { width: 45, align: 'right' });
-          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 450, currentY, { width: 50, align: 'right' });
-          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 505, currentY, { width: 50, align: 'right' });
+          doc.text(alloc.school_name || '-', 156, currentY, { width: 125, ellipsis: true });
+          doc.text(alloc.course_name || '-', 285, currentY, { width: 110, ellipsis: true });
+          doc.text(count.toLocaleString(), 399, currentY, { width: 45, align: 'right' });
+          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 448, currentY, { width: 52, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 504, currentY, { width: 52, align: 'right' });
+        } else if (calcUpper === 'REGULAR') {
+          // ภาคปกติ: กลุ่มเรียน / แผนก, ระดับ, จำนวน นร., ชม.ฝึก, เงินต่อหัว, รวมงบตั้งต้น, ปันส่วนสอนช่วย, งบสุทธิคงเหลือ
+          doc.font(fontBold).fontSize(8.5);
+          doc.text(alloc.group_name || '-', 38, currentY, { width: 110, ellipsis: true });
+          doc.font(fontRegular).fontSize(7.5).fillColor('#64748b');
+          doc.text(alloc.department_name || '', 38, currentY + 10, { width: 110, ellipsis: true });
+
+          doc.fillColor('#1e293b').font(fontRegular).fontSize(8.5);
+          doc.text(alloc.education_level || '-', 150, currentY + 2, { width: 38, align: 'center' });
+          doc.text(count.toLocaleString(), 190, currentY + 2, { width: 38, align: 'right' });
+          doc.text(alloc.total_practice_hours !== undefined && alloc.total_practice_hours !== null ? String(alloc.total_practice_hours) : '-', 230, currentY + 2, { width: 36, align: 'right' });
+          doc.text(rate.toLocaleString('th-TH'), 268, currentY + 2, { width: 44, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 314, currentY + 2, { width: 58, align: 'right' });
+
+          // Shares column
+          if (shares.length > 0) {
+            let shareY = currentY;
+            shares.forEach((s) => {
+              const teachText = s.teaching_hours !== undefined && s.teaching_hours !== null && Number(s.teaching_hours) > 0
+                ? `${Number(s.teaching_hours)}ชม.`
+                : '';
+              const prefix = teachText ? `${s.target_department_name} (${teachText})` : s.target_department_name;
+              doc.fontSize(7.5).fillColor('#92400e');
+              doc.text(`${prefix}:`, 374, shareY, { width: 70, ellipsis: true });
+              doc.text(`${Number(s.share_amount).toLocaleString('th-TH')} ฿`, 440, shareY, { width: 42, align: 'right' });
+              shareY += 10;
+            });
+            doc.fillColor('#1e293b');
+          } else {
+            doc.fontSize(8.5).fillColor('#94a3b8');
+            doc.text('-', 374, currentY + 2, { width: 108, align: 'center' });
+            doc.fillColor('#1e293b');
+          }
+
+          // Net remaining
+          doc.font(fontBold).fontSize(8.5).fillColor('#047857');
+          doc.text(netRemain.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 484, currentY + 2, { width: 72, align: 'right' });
+          doc.fillColor('#1e293b');
         } else {
-          doc.text(alloc.department_name || '', 42, currentY, { width: 130, ellipsis: true });
-          doc.text(alloc.group_name || alloc.batch_name || '-', 175, currentY, { width: 135, ellipsis: true });
-          doc.text(alloc.education_level || alloc.step_level || '-', 315, currentY, { width: 55, align: 'center' });
-          doc.text(count.toLocaleString(), 375, currentY, { width: 55, align: 'right' });
-          doc.text(rate.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 435, currentY, { width: 55, align: 'right' });
-          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 495, currentY, { width: 60, align: 'right' });
+          // ALL (ทุกประเภทงบ)
+          const typeName = CALC_LABELS[alloc.calculation_type] || alloc.calculation_type || 'ภาคปกติ';
+          doc.font(fontBold).fontSize(8.5);
+          doc.text(alloc.group_name || alloc.batch_name || alloc.course_name || '-', 38, currentY, { width: 105, ellipsis: true });
+          doc.font(fontRegular).fontSize(7.5).fillColor('#64748b');
+          doc.text(alloc.department_name || '', 38, currentY + 10, { width: 105, ellipsis: true });
+
+          doc.fillColor('#1e293b').font(fontRegular).fontSize(8.5);
+          doc.text(typeName, 145, currentY + 2, { width: 52, align: 'center' });
+
+          let detailText = alloc.education_level || '-';
+          if (alloc.calculation_type === 'SPECIAL_SUPPLEMENTARY') {
+            detailText = alloc.batch_name || '-';
+          } else if (alloc.calculation_type === 'DUAL_EDUCATION') {
+            detailText = `${alloc.school_name || '-'}${alloc.step_level ? ` (${alloc.step_level})` : ''}`;
+          } else if (alloc.calculation_type === 'SHORT_COURSE') {
+            detailText = `${alloc.course_name || '-'}${alloc.school_name ? ` (${alloc.school_name})` : ''}`;
+          }
+          doc.text(detailText, 200, currentY + 2, { width: 76, ellipsis: true });
+          doc.text(count.toLocaleString(), 278, currentY + 2, { width: 38, align: 'right' });
+          doc.text(rate.toLocaleString('th-TH'), 318, currentY + 2, { width: 42, align: 'right' });
+          doc.text(base.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 362, currentY + 2, { width: 56, align: 'right' });
+
+          if (totalShares > 0) {
+            doc.fillColor('#be123c').text(`(${totalShares.toLocaleString('th-TH', { minimumFractionDigits: 2 })})`, 420, currentY + 2, { width: 64, align: 'right' });
+            doc.fillColor('#1e293b');
+          } else {
+            doc.fillColor('#94a3b8').text('-', 420, currentY + 2, { width: 64, align: 'center' });
+            doc.fillColor('#1e293b');
+          }
+
+          doc.font(fontBold).fillColor('#047857').text(netRemain.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 486, currentY + 2, { width: 70, align: 'right' });
+          doc.fillColor('#1e293b');
         }
 
-        currentY += 17;
+        currentY += rowHeight;
       });
 
       // Total Line for Allocations
       doc.moveTo(36, currentY).lineTo(559, currentY).stroke('#a5b4fc');
       currentY += 4;
       doc.rect(36, currentY - 2, 523, 19).fill('#e0e7ff');
-      doc.fillColor('#1e1b4b').font(fontBold).fontSize(10);
-      doc.text(`รวมรายการจัดสรรทั้งสิ้น (${allocations.length} รายการ)`, 42, currentY + 2);
-      if (calcUpper === 'SHORT_COURSE') {
-        doc.text(sumAllocStudents.toLocaleString(), 400, currentY + 2, { width: 45, align: 'right' });
-        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 505, currentY + 2, { width: 50, align: 'right' });
-      } else if (calcUpper === 'SPECIAL_SUPPLEMENTARY') {
-        doc.text(sumAllocStudents.toLocaleString(), 340, currentY + 2, { width: 60, align: 'right' });
-        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 480, currentY + 2, { width: 75, align: 'right' });
+      doc.fillColor('#1e1b4b').font(fontBold).fontSize(9);
+
+      if (calcUpper === 'SPECIAL_SUPPLEMENTARY') {
+        doc.text(`รวมรายการจัดสรรทั้งสิ้น (${allocations.length} รายการ)`, 42, currentY + 2);
+        doc.text(sumAllocStudents.toLocaleString(), 350, currentY + 2, { width: 60, align: 'right' });
+        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 483, currentY + 2, { width: 73, align: 'right' });
       } else if (calcUpper === 'DUAL_EDUCATION') {
-        doc.text(sumAllocStudents.toLocaleString(), 350, currentY + 2, { width: 55, align: 'right' });
-        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 480, currentY + 2, { width: 75, align: 'right' });
+        doc.text(`รวมรายการจัดสรรทั้งสิ้น (${allocations.length} รายการ)`, 42, currentY + 2);
+        doc.text(sumAllocStudents.toLocaleString(), 360, currentY + 2, { width: 55, align: 'right' });
+        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 484, currentY + 2, { width: 72, align: 'right' });
+      } else if (calcUpper === 'SHORT_COURSE') {
+        doc.text(`รวมรายการจัดสรรทั้งสิ้น (${allocations.length} รายการ)`, 42, currentY + 2);
+        doc.text(sumAllocStudents.toLocaleString(), 399, currentY + 2, { width: 45, align: 'right' });
+        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 504, currentY + 2, { width: 52, align: 'right' });
+      } else if (calcUpper === 'REGULAR') {
+        doc.text(`รวมรายการจัดสรร (${allocations.length} รายการ)`, 38, currentY + 2);
+        doc.text(sumAllocStudents.toLocaleString(), 190, currentY + 2, { width: 38, align: 'right' });
+        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 314, currentY + 2, { width: 58, align: 'right' });
+        if (sumAllocDeduct > 0) {
+          doc.text(`(${sumAllocDeduct.toLocaleString('th-TH', { minimumFractionDigits: 2 })})`, 374, currentY + 2, { width: 108, align: 'right' });
+        } else {
+          doc.text('-', 374, currentY + 2, { width: 108, align: 'center' });
+        }
+        doc.text(sumAllocNet.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 484, currentY + 2, { width: 72, align: 'right' });
       } else {
-        doc.text(sumAllocStudents.toLocaleString(), 375, currentY + 2, { width: 55, align: 'right' });
-        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 495, currentY + 2, { width: 60, align: 'right' });
+        // ALL
+        doc.text(`รวมรายการจัดสรร (${allocations.length} รายการ)`, 38, currentY + 2);
+        doc.text(sumAllocStudents.toLocaleString(), 278, currentY + 2, { width: 38, align: 'right' });
+        doc.text(sumAllocBase.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 362, currentY + 2, { width: 56, align: 'right' });
+        if (sumAllocDeduct > 0) {
+          doc.text(`(${sumAllocDeduct.toLocaleString('th-TH', { minimumFractionDigits: 2 })})`, 420, currentY + 2, { width: 64, align: 'right' });
+        } else {
+          doc.text('-', 420, currentY + 2, { width: 64, align: 'center' });
+        }
+        doc.text(sumAllocNet.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 486, currentY + 2, { width: 70, align: 'right' });
       }
+
       currentY += 21;
     }
 

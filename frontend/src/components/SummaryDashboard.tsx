@@ -57,15 +57,15 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
 
   // เมื่อเลือกประเภทการคำนวณ ให้แท็บเริ่มต้นเป็นกระทบยอดรายวิชา
   useEffect(() => {
-    setActiveTab('reconciliation');
+    setActiveTab('allocations');
   }, [calculationType]);
 
   const getAllocationsTabTitle = () => {
-    if (calculationType === 'SPECIAL_SUPPLEMENTARY') return `ตารางภาคสมทบ (${allocations.length})`;
-    if (calculationType === 'DUAL_EDUCATION') return `ตารางทวิศึกษา (${allocations.length})`;
-    if (calculationType === 'SHORT_COURSE') return `ตารางระยะสั้น (${allocations.length})`;
-    if (calculationType === 'REGULAR') return `ตารางภาคปกติ (${allocations.length})`;
-    return `รายการจัดสรรทั้งหมด (${allocations.length})`;
+    if (calculationType === 'SPECIAL_SUPPLEMENTARY') return `กระทบยอดรายวิชา / ภาคสมทบ (${allocations.length})`;
+    if (calculationType === 'DUAL_EDUCATION') return `กระทบยอดรายวิชา / ทวิศึกษา (${allocations.length})`;
+    if (calculationType === 'SHORT_COURSE') return `กระทบยอดรายวิชา / ระยะสั้น (${allocations.length})`;
+    if (calculationType === 'REGULAR') return `กระทบยอดรายวิชา / ภาคปกติ (${allocations.length})`;
+    return `กระทบยอดรายวิชา (${allocations.length})`;
   };
 
   // 3 ประเภทงบนี้ ในแท็บกระทบยอดรายแผนก ให้แสดงแผนกที่มีข้อมูลเท่านั้น
@@ -238,7 +238,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
               }`}
             >
               <Building2 className="w-3.5 h-3.5" />
-              <span>กระทบยอดรายวิชา</span>
+              <span>กระทบยอดรายแผนก</span>
             </button>
             <button
               onClick={() => setActiveTab('allocations')}
